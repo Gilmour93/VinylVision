@@ -98,6 +98,42 @@ class VectorDatabase:
             logger.error(f"Error adding album to database: {e}")
             return False
     
+    def add_embeddings(self,
+                      embeddings: List[List[float]], 
+                      metadatas: List[Dict[str, Any]],
+                      ids: List[str]) -> bool:
+        """
+        Add multiple embeddings to database in batch.
+        
+        Args:
+            embeddings: List of feature vectors
+            metadatas: List of metadata dictionaries
+            ids: List of unique identifiers
+            
+        Returns:
+            bool: True if addition successful, False otherwise
+        """
+        try:
+            if self.collection is None:
+                logger.error("Database not initialized")
+                return False
+            
+            # Clean all metadata
+            clean_metadatas = [self._clean_metadata(metadata) for metadata in metadatas]
+            
+            self.collection.add(
+                ids=ids,
+                embeddings=embeddings,
+                metadatas=clean_metadatas
+            )
+            
+            logger.info(f"Added {len(ids)} albums to database")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding embeddings batch: {e}")
+            return False
+    
     def _clean_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
         Clean metadata to only include types supported by ChromaDB.

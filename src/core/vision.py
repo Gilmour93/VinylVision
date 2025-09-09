@@ -13,7 +13,7 @@ from loguru import logger
 class AlbumDetector:
     """Detects album covers in camera frames."""
     
-    def __init__(self, min_area: int = 10000):
+    def __init__(self, min_area: int = 2000):
         """
         Initialize album detector.
         
@@ -24,7 +24,7 @@ class AlbumDetector:
         
     def detect_albums(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
         """
-        Detect rectangular album covers in frame.
+        Detect rectangular album covers in frame using multiple detection strategies.
         
         Args:
             frame: Input camera frame
@@ -33,43 +33,137 @@ class AlbumDetector:
             List[Tuple[int, int, int, int]]: List of bounding boxes (x, y, w, h)
         """
         try:
-            # Convert to grayscale
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            # Apply Gaussian blur
-            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-            
-            # Edge detection
-            edges = cv2.Canny(blurred, 50, 150)
-            
-            # Find contours
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            
             albums = []
-            for contour in contours:
-                # Filter by area
-                area = cv2.contourArea(contour)
-                if area < self.min_area:
-                    continue
-                
-                # Approximate contour to polygon
-                epsilon = 0.02 * cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, epsilon, True)
-                
-                # Check if it's roughly rectangular (4 corners)
-                if len(approx) >= 4:
-                    x, y, w, h = cv2.boundingRect(contour)
-                    
-                    # Check aspect ratio (albums are roughly square)
-                    aspect_ratio = w / h
-                    if 0.7 <= aspect_ratio <= 1.4:
-                        albums.append((x, y, w, h))
+            h, w = frame.shape[:2]
             
-            return albums
+            # Strategy 1: Center region detection (most reliable for user-held albums)
+            center_x, center_y = w // 2, h // 2
+            sizes = [min(w, h) // 3, min(w, h) // 4, min(w, h) // 5]
+            
+            for size in sizes:
+                x = max(0, center_x - size // 2)
+                y = max(0, center_y - size // 2)
+                w_box = min(size, w - x)
+                h_box = min(size, h - y)
+                
+                if w_box * h_box >= self.min_area:
+                    albums.append((x, y, w_box, h_box))
+            
+            # Strategy 2: Color variance detection
+            albums.extend(self._detect_by_color_variance(frame))
+            
+            # Strategy 3: Edge density detection  
+            albums.extend(self._detect_by_edge_density(frame))
+            
+            # Strategy 4: Traditional contour detection (as backup)
+            albums.extend(self._detect_by_contours(frame))
+            
+            # Remove duplicates and overlapping detections
+            albums = self._remove_overlapping_detections(albums)
+            
+            # Sort by area (largest first) and return top candidates
+            albums_with_area = [(x, y, w, h, w*h) for x, y, w, h in albums]
+            albums_with_area.sort(key=lambda x: x[4], reverse=True)
+            
+            return [(x, y, w, h) for x, y, w, h, _ in albums_with_area[:5]]
             
         except Exception as e:
             logger.error(f"Error detecting albums: {e}")
             return []
+    
+    def _detect_by_color_variance(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+        """Detect regions with high color variance."""
+        try:
+            lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+            h, w = frame.shape[:2]
+            boxes = []
+            
+            step = 60
+            size = 200
+            
+            for y in range(0, h - size, step):
+                for x in range(0, w - size, step):
+                    roi = lab[y:y+size, x:x+size]
+                    std_dev = np.std(roi)
+                    
+                    if std_dev > 25:  # Threshold for color variance
+                        boxes.append((x, y, size, size))
+            
+            return boxes[:3]
+        except:
+            return []
+    
+    def _detect_by_edge_density(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+        """Detect regions with high edge density."""
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            edges = cv2.Canny(gray, 20, 80)
+            h, w = frame.shape[:2]
+            boxes = []
+            
+            step = 50
+            size = 180
+            
+            for y in range(0, h - size, step):
+                for x in range(0, w - size, step):
+                    roi = edges[y:y+size, x:x+size]
+                    edge_count = np.sum(roi > 0)
+                    
+                    if edge_count > 400:  # Threshold for edge density
+                        boxes.append((x, y, size, size))
+            
+            return boxes[:4]
+        except:
+            return []
+    
+    def _detect_by_contours(self, frame: np.ndarray) -> List[Tuple[int, int, int, int]]:
+        """Traditional contour-based detection (backup method)."""
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            edges = cv2.Canny(blurred, 20, 80)
+            
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            albums = []
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area < self.min_area:
+                    continue
+                
+                x, y, w, h = cv2.boundingRect(contour)
+                aspect_ratio = w / h if h > 0 else 0
+                
+                if 0.3 <= aspect_ratio <= 3.0:  # Very flexible aspect ratio
+                    albums.append((x, y, w, h))
+            
+            return albums
+        except:
+            return []
+    
+    def _remove_overlapping_detections(self, albums: List[Tuple[int, int, int, int]]) -> List[Tuple[int, int, int, int]]:
+        """Remove overlapping detections."""
+        if not albums:
+            return []
+        
+        unique_albums = []
+        for x1, y1, w1, h1 in albums:
+            overlaps = False
+            for x2, y2, w2, h2 in unique_albums:
+                # Check overlap
+                overlap_x = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+                overlap_y = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+                overlap_area = overlap_x * overlap_y
+                
+                min_area = min(w1 * h1, w2 * h2)
+                if overlap_area > 0.3 * min_area:  # 30% overlap threshold
+                    overlaps = True
+                    break
+            
+            if not overlaps:
+                unique_albums.append((x1, y1, w1, h1))
+        
+        return unique_albums
     
     def extract_roi(self, frame: np.ndarray, bbox: Tuple[int, int, int, int]) -> Optional[np.ndarray]:
         """
