@@ -289,3 +289,5 @@ demo/
 examples/*.jpg
 examples/*.png
 examples/*.mp4
+# Image assets (too large for git)
+images/
