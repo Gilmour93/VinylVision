@@ -400,6 +400,9 @@ class VinylVisionMainWindow:
                     config.discogs.consumer_key,
                     config.discogs.consumer_secret
                 )
+                # Initialize the pipeline components
+                if not self.album_pipeline.initialize():
+                    logger.error("Failed to initialize album pipeline")
             
             self.status_var.set("Configuration loaded successfully")
             logger.info("VinylVision configuration loaded")

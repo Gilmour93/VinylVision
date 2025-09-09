@@ -385,8 +385,15 @@ class EnhancedVinylVisionWindow:
                     config.discogs.consumer_key,
                     config.discogs.consumer_secret
                 )
-                self.connection_label.config(foreground="green")
-                self.status_indicator.set_state('ready')
+                # Initialize the pipeline components
+                if self.album_pipeline.initialize():
+                    self.connection_label.config(foreground="green")
+                    self.status_indicator.set_state('ready')
+                    logger.info("Album pipeline initialized successfully")
+                else:
+                    self.connection_label.config(foreground="red")
+                    self.status_indicator.set_state('error', 'Pipeline init failed')
+                    logger.error("Failed to initialize album pipeline")
             else:
                 self.connection_label.config(foreground="red")
                 self.status_indicator.set_state('error', 'No Discogs credentials')
@@ -576,15 +583,9 @@ class EnhancedVinylVisionWindow:
             if album_roi is None:
                 return None
             
-            # Extract features (ensure model is loaded)
-            if not hasattr(self.feature_extractor, 'model') or self.feature_extractor.model is None:
-                self.feature_extractor.load_model()
-            
-            features = self.feature_extractor.extract_features(album_roi)
-            
-            # Search database
-            if self.album_pipeline and features is not None:
-                search_results = self.album_pipeline.search_similar_albums(features)
+            # Search database using album image
+            if self.album_pipeline:
+                search_results = self.album_pipeline.search_similar_albums(album_roi)
                 
                 if search_results:
                     best_match = search_results[0]
