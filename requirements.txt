@@ -1,0 +1,63 @@
+# VinylVision MVP Requirements
+# Computer Vision and Deep Learning
+torch>=2.0.0,<3.0.0
+torchvision>=0.15.0,<1.0.0
+efficientnet-pytorch>=0.7.1
+opencv-python>=4.8.0,<5.0.0
+Pillow>=10.0.0,<11.0.0
+numpy>=1.24.0,<2.0.0
+
+# Vector Database
+chromadb>=0.4.0,<1.0.0
+
+# API and HTTP
+requests>=2.31.0,<3.0.0
+python3-discogs-client>=2.6.0,<3.0.0
+
+# Image Processing and Computer Vision
+scikit-image>=0.21.0,<1.0.0
+imageio>=2.31.0,<3.0.0
+
+# GUI Framework
+tkinter-toolkit>=0.1.0; platform_system != "Darwin"  # tkinter comes with Python on macOS
+
+# Data Handling
+pandas>=2.0.0,<3.0.0
+scipy>=1.11.0,<2.0.0
+
+# Configuration and Environment
+python-dotenv>=1.0.0,<2.0.0
+PyYAML>=6.0.1,<7.0.0
+
+# Logging and Debugging
+loguru>=0.7.0,<1.0.0
+
+# Testing (dev dependencies)
+pytest>=7.4.0,<8.0.0
+pytest-cov>=4.1.0,<5.0.0
+pytest-mock>=3.11.0,<4.0.0
+
+# Code Quality (dev dependencies)
+black>=23.7.0,<24.0.0
+flake8>=6.0.0,<7.0.0
+mypy>=1.5.0,<2.0.0
+
+# Performance Monitoring
+psutil>=5.9.0,<6.0.0
+memory-profiler>=0.61.0,<1.0.0
+
+# Utilities
+tqdm>=4.66.0,<5.0.0
+pathlib2>=2.3.7,<3.0.0; python_version < "3.4"
+
+# Optional: GPU Support (uncomment if CUDA available)
+# torch-audio>=2.0.0,<3.0.0
+# torchaudio>=2.0.0,<3.0.0
+
+# Optional: Advanced UI (future enhancement)
+# PyQt5>=5.15.0,<6.0.0
+# PySide6>=6.5.0,<7.0.0
+
+# Optional: Deployment
+# pyinstaller>=5.13.0,<6.0.0
+# cx_Freeze>=6.15.0,<7.0.0
