@@ -22,38 +22,38 @@
 - [x] Create requirements.txt
 
 ### 🎥 Video Capture System
-- [ ] Implement basic webcam capture with OpenCV
-- [ ] Add frame rate control (2-3 FPS target)
-- [ ] Implement frame preprocessing pipeline:
-  - [ ] Resize frames to standard resolution
-  - [ ] Apply basic noise reduction
-  - [ ] Normalize pixel values
-- [ ] Add camera error handling
-- [ ] Test on multiple camera sources
+- [x] Implement basic webcam capture with OpenCV
+- [x] Add frame rate control (2-3 FPS target)
+- [x] Implement frame preprocessing pipeline:
+  - [x] Resize frames to standard resolution
+  - [x] Apply basic noise reduction
+  - [x] Normalize pixel values
+- [x] Add camera error handling
+- [x] Test on multiple camera sources
 
 ### 🤖 Computer Vision Core
-- [ ] Download and setup EfficientNet-B0 model
-- [ ] Implement feature extraction pipeline:
-  - [ ] Load pre-trained weights
-  - [ ] Add input preprocessing
-  - [ ] Extract 512-dim embeddings
-- [ ] Test embedding generation on sample images
-- [ ] Optimize model for inference speed
+- [x] Download and setup EfficientNet-B0 model
+- [x] Implement feature extraction pipeline:
+  - [x] Load pre-trained weights
+  - [x] Add input preprocessing
+  - [x] Extract 512-dim embeddings
+- [x] Test embedding generation on sample images
+- [x] Optimize model for inference speed
 - [ ] Add model quantization (TensorFlow Lite/ONNX)
 
 ### 🔍 Album Detection
-- [ ] Implement basic rectangular object detection
-- [ ] Add contour detection for album shapes
-- [ ] Implement perspective correction for angled albums
-- [ ] Add region of interest (ROI) filtering
-- [ ] Test detection accuracy on sample video
+- [x] Implement basic rectangular object detection
+- [x] Add contour detection for album shapes
+- [x] Implement perspective correction for angled albums
+- [x] Add region of interest (ROI) filtering
+- [x] Test detection accuracy on sample video
 
 ### ✅ Phase 1 Acceptance Criteria
-- [ ] Camera captures stable video feed
-- [ ] Feature extraction works on single images
-- [ ] Basic album detection identifies rectangular objects
-- [ ] Processing time <200ms per frame
-- [ ] Memory usage <1GB during operation
+- [x] Camera captures stable video feed
+- [x] Feature extraction works on single images
+- [x] Basic album detection identifies rectangular objects
+- [x] Processing time <200ms per frame
+- [x] Memory usage <1GB during operation
 
 ---
 

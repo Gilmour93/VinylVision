@@ -86,8 +86,9 @@ class AlbumFeatureExtractor:
             # Load pretrained EfficientNet
             self.model = EfficientNet.from_pretrained(self.model_name)
             
-            # Remove classifier head to get features
-            self.model = nn.Sequential(*list(self.model.children())[:-1])
+            # Remove the final classifier layers to extract features
+            # Keep everything except the final linear classifier
+            self.model._fc = nn.Identity()  # Replace classifier with identity
             
             # Set to evaluation mode
             self.model.eval()
@@ -138,15 +139,18 @@ class AlbumFeatureExtractor:
             with torch.no_grad():
                 features = self.model(input_tensor)
                 
-                # Global average pooling to get fixed-size features
-                features = torch.mean(features, dim=[2, 3])  # Remove spatial dimensions
+                # EfficientNet already applies global average pooling internally
+                # The output should be [batch_size, 1280] for EfficientNet-B0
                 
                 # Ensure we get 512-dimensional features
-                if features.shape[1] != 1280:  # EfficientNet-B0 outputs 1280 features
+                if features.shape[1] == 1280:  # EfficientNet-B0 outputs 1280 features
                     # Add a linear layer to reduce to 512 dimensions
                     if not hasattr(self, 'feature_reducer'):
                         self.feature_reducer = nn.Linear(1280, 512).to(self.device)
                         self.feature_reducer.eval()
+                        # Initialize with Xavier uniform for better feature distribution
+                        nn.init.xavier_uniform_(self.feature_reducer.weight)
+                        nn.init.zeros_(self.feature_reducer.bias)
                     features = self.feature_reducer(features)
                 
                 # Convert to numpy

@@ -96,23 +96,63 @@ class AlbumDetector:
 
 
 class FeatureExtractor:
-    """Placeholder for deep learning feature extraction."""
+    """Deep learning feature extraction using EfficientNet."""
     
     def __init__(self):
         """Initialize feature extractor."""
-        self.model = None  # Will be loaded in Phase 1 completion
+        from ..models.efficientnet import AlbumFeatureExtractor
+        self.model = AlbumFeatureExtractor()
+        self.is_loaded = False
+        
+    def initialize(self) -> bool:
+        """
+        Initialize and load the EfficientNet model.
+        
+        Returns:
+            bool: True if model loaded successfully, False otherwise
+        """
+        try:
+            success = self.model.load_model()
+            self.is_loaded = success
+            if success:
+                logger.info("Feature extraction model loaded successfully")
+            else:
+                logger.error("Failed to load feature extraction model")
+            return success
+        except Exception as e:
+            logger.error(f"Error initializing feature extractor: {e}")
+            return False
         
     def extract_features(self, image: np.ndarray) -> Optional[np.ndarray]:
         """
         Extract features from album cover image.
         
         Args:
-            image: Album cover image
+            image: Album cover image (RGB format)
             
         Returns:
-            Optional[np.ndarray]: Feature vector or None if extraction fails
+            Optional[np.ndarray]: 512-dimensional feature vector or None if extraction fails
         """
-        # Placeholder implementation
-        # TODO: Implement EfficientNet-B0 feature extraction
-        logger.info("Feature extraction not yet implemented")
-        return None
+        if not self.is_loaded:
+            logger.warning("Feature extractor not initialized. Call initialize() first.")
+            return None
+            
+        try:
+            # Extract features using EfficientNet
+            features = self.model.extract_features(image)
+            return features
+        except Exception as e:
+            logger.error(f"Error extracting features: {e}")
+            return None
+    
+    def get_model_info(self) -> dict:
+        """
+        Get information about the loaded model.
+        
+        Returns:
+            dict: Model information
+        """
+        if self.is_loaded:
+            return self.model.get_model_info()
+        else:
+            return {'is_loaded': False, 'error': 'Model not initialized'}

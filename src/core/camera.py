@@ -82,16 +82,33 @@ class CameraManager:
         Returns:
             np.ndarray: Preprocessed frame
         """
-        # Resize if needed
+        # Resize to standard resolution for consistent processing
         height, width = frame.shape[:2]
-        if width > 1280 or height > 720:
-            scale = min(1280/width, 720/height)
+        target_width, target_height = 1280, 720
+        
+        if width != target_width or height != target_height:
+            # Maintain aspect ratio
+            scale = min(target_width/width, target_height/height)
             new_width = int(width * scale)
             new_height = int(height * scale)
             frame = cv2.resize(frame, (new_width, new_height))
+            
+            # Pad to target size if needed
+            if new_width != target_width or new_height != target_height:
+                # Create black background
+                padded = np.zeros((target_height, target_width, 3), dtype=frame.dtype)
+                
+                # Center the frame
+                y_offset = (target_height - new_height) // 2
+                x_offset = (target_width - new_width) // 2
+                padded[y_offset:y_offset+new_height, x_offset:x_offset+new_width] = frame
+                frame = padded
         
         # Apply noise reduction
         frame = cv2.bilateralFilter(frame, 9, 75, 75)
+        
+        # Normalize pixel values for consistency
+        frame = np.clip(frame, 0, 255).astype(np.uint8)
         
         return frame
     
