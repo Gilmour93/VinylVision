@@ -82,10 +82,13 @@ class VectorDatabase:
             # Convert embedding to list for ChromaDB
             embedding_list = embedding.tolist()
             
+            # Clean metadata for ChromaDB (only supports str, int, float, bool)
+            clean_metadata = self._clean_metadata(metadata)
+            
             self.collection.add(
                 ids=[album_id],
                 embeddings=[embedding_list],
-                metadatas=[metadata]
+                metadatas=[clean_metadata]
             )
             
             logger.debug(f"Added album {album_id} to database")
@@ -94,6 +97,34 @@ class VectorDatabase:
         except Exception as e:
             logger.error(f"Error adding album to database: {e}")
             return False
+    
+    def _clean_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Clean metadata to only include types supported by ChromaDB.
+        
+        Args:
+            metadata: Raw metadata dictionary
+            
+        Returns:
+            Dict[str, Any]: Cleaned metadata with supported types only
+        """
+        clean_meta = {}
+        
+        for key, value in metadata.items():
+            if isinstance(value, (str, int, float, bool)):
+                clean_meta[key] = value
+            elif isinstance(value, list):
+                # Convert lists to comma-separated strings
+                if value:  # Only if list is not empty
+                    if all(isinstance(item, str) for item in value):
+                        clean_meta[key] = ", ".join(value)
+                    else:
+                        clean_meta[key] = ", ".join(str(item) for item in value)
+            elif value is not None:
+                # Convert other types to string
+                clean_meta[key] = str(value)
+        
+        return clean_meta
     
     def search_similar(self, 
                       query_embedding: np.ndarray,
