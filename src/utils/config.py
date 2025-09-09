@@ -283,3 +283,41 @@ class ConfigManager:
             
         except Exception as e:
             logger.error(f"Error loading user settings: {e}")
+
+
+# Global configuration instance
+_config_manager = None
+
+
+def load_config(config_file: str = 'config/config.py') -> ConfigManager:
+    """
+    Load application configuration.
+    
+    Args:
+        config_file: Path to configuration file
+        
+    Returns:
+        ConfigManager: Configured application settings
+    """
+    global _config_manager
+    
+    if _config_manager is None:
+        _config_manager = ConfigManager(config_file)
+        _config_manager.load_config()
+    
+    return _config_manager
+
+
+def get_config() -> ConfigManager:
+    """
+    Get the current configuration manager instance.
+    
+    Returns:
+        ConfigManager: Current configuration instance
+    """
+    global _config_manager
+    
+    if _config_manager is None:
+        return load_config()
+    
+    return _config_manager
