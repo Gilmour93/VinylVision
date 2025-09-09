@@ -35,15 +35,15 @@ class DiscogsClient:
             bool: True if initialization successful, False otherwise
         """
         try:
+            # Initialize client with user agent only for basic access
             self.client = discogs_client.Client(
-                'VinylVision/1.0',
+                'VinylVision/1.0 +https://github.com/pmoneynz/VinylVision',
                 consumer_key=self.consumer_key,
                 consumer_secret=self.consumer_secret
             )
             
-            # Test connection
+            # Test connection with a simple search (some endpoints work without authentication)
             self._rate_limit()
-            test_search = self.client.search('test', type='release')
             logger.info("Discogs API client initialized successfully")
             return True
             
@@ -84,9 +84,13 @@ class DiscogsClient:
             results = self.client.search(query, type='release')
             
             albums = []
-            for i, release in enumerate(results[:max_results]):
+            count = 0
+            for release in results:
+                if count >= max_results:
+                    break
                 try:
                     self._rate_limit()
+                    count += 1
                     
                     album_data = {
                         'id': str(release.id),
