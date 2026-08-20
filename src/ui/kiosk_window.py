@@ -39,10 +39,10 @@ except ImportError:
 
 
 class KioskVinylVisionWindow:
-    """Dashboard Hi-Fi a due viste: Now Playing (Kiosk) e Settings & Calibrazione."""
+    """Hi-Fi Dual-View Dashboard: Now Playing (Kiosk) and Settings & Calibration."""
     
     def __init__(self, config_path: Optional[str] = None):
-        # 1. Caricamento configurazione
+        # 1. Load Configuration
         self.config_manager = load_config(config_path) if config_path else load_config()
         
         if hasattr(self.config_manager, 'config'):
@@ -53,7 +53,7 @@ class KioskVinylVisionWindow:
             cfg = {}
         self.config = cfg
 
-        # 2. Inizializzazione moduli Core
+        # 2. Initialize Core Modules
         self.camera_manager = CameraManager(self.config.get('camera', self.config_manager))
         self.album_detector = AlbumDetector(self.config.get('detection', self.config_manager))
         
@@ -84,14 +84,14 @@ class KioskVinylVisionWindow:
 
         self.audio_engine = AudioEngine()
 
-        # 3. Finestra Principale Tkinter
+        # 3. Main Tkinter Window
         self.root = tk.Tk()
         self.root.title("VinylVision - Now Playing")
         self.root.geometry("1024x600")
         self.root.minsize(800, 480)
         self.root.configure(bg="#121214")
 
-        # 4. Stato applicazione e Variabili
+        # 4. State Variables
         self.running = False
         self.is_capturing = False
         self.is_calibrating = False
@@ -106,22 +106,22 @@ class KioskVinylVisionWindow:
         self.last_matched_id: Optional[int] = None
         self.playback_start_time = 0.0
         
-        # Riferimenti immagini per evitare garbage collection Tkinter
+        # Image references to prevent Tkinter garbage collection
         self._cover_img_ref: Optional[ImageTk.PhotoImage] = None
         self._cam_tk: Optional[ImageTk.PhotoImage] = None
         self._warp_preview_tk: Optional[ImageTk.PhotoImage] = None
         
-        # Dimensioni rendering video fedeli alle proporzioni 16:9
+        # 16:9 Display Aspect Ratio Dimensions
         self.cam_disp_w = 480
         self.cam_disp_h = 270
 
-        # Variabili Tkinter
+        # Tkinter Variables
         self.confidence_threshold = tk.DoubleVar(value=0.25)
         self.last_likelihood = 0.0
 
         self._load_saved_calibration()
 
-        # Scorciatoie
+        # Keyboard Bindings
         self.root.bind("<c>", lambda e: self.toggle_view())
         self.root.bind("<C>", lambda e: self.toggle_view())
         self.root.bind("<Escape>", lambda e: self.show_now_playing_view())
@@ -156,53 +156,53 @@ class KioskVinylVisionWindow:
         self.settings_frame = ttk.Frame(self.root, style="Dark.TFrame")
 
     # ==========================================
-    # 1. VISTA: NOW PLAYING (DASHBOARD)
+    # 1. VIEW: NOW PLAYING (DASHBOARD)
     # ==========================================
     def _build_now_playing_view(self):
-        # Barra Superiore
+        # Top Bar
         top_bar = ttk.Frame(self.now_playing_frame, style="Dark.TFrame")
         top_bar.pack(fill=tk.X, padx=20, pady=(15, 5))
         
         logo_label = ttk.Label(top_bar, text="VINYLVISION", font=("Arial", 12, "bold"), foreground="#00FF66", background="#121214")
         logo_label.pack(side=tk.LEFT)
         
-        gear_btn = ttk.Button(top_bar, text="⚙ Impostazioni (C)", style="Gear.TButton", command=self.show_settings_view)
+        gear_btn = ttk.Button(top_bar, text="⚙ Settings (C)", style="Gear.TButton", command=self.show_settings_view)
         gear_btn.pack(side=tk.RIGHT)
 
         main_content = ttk.Frame(self.now_playing_frame, style="Dark.TFrame")
         main_content.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        main_content.columnconfigure(0, weight=5)  # Frame Vinile & Discogs
-        main_content.columnconfigure(1, weight=5)  # Frame Lyrics & Player
+        main_content.columnconfigure(0, weight=5)  # Vinyl & Discogs Card
+        main_content.columnconfigure(1, weight=5)  # Lyrics & Player Card
 
         # ====================================================
-        # FRAME 1: DETTAGLI VINILE & MARKETPLACE DISCOGS
+        # FRAME 1: VINYL DETAILS & DISCOGS MARKETPLACE
         # ====================================================
         vinyl_card = ttk.Frame(main_content, style="Card.TFrame", padding=15)
         vinyl_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
-        # Copertina Album
+        # Album Artwork
         self.cover_canvas = tk.Canvas(vinyl_card, bg="#111115", width=220, height=220, highlightthickness=0)
         self.cover_canvas.pack(pady=(0, 10))
         self._set_default_cover_image()
 
-        # Informazioni Principali
-        self.album_title_label = ttk.Label(vinyl_card, text="In attesa del vinile...", font=("Helvetica", 15, "bold"), foreground="#FFFFFF", background="#1A1A1E", wraplength=380)
+        # Main Information
+        self.album_title_label = ttk.Label(vinyl_card, text="Waiting for vinyl...", font=("Helvetica", 15, "bold"), foreground="#FFFFFF", background="#1A1A1E", wraplength=380)
         self.album_title_label.pack(anchor="w", pady=(0, 2))
 
-        self.album_artist_label = ttk.Label(vinyl_card, text="Posiziona un disco sul supporto", font=("Helvetica", 12), foreground="#00A8FF", background="#1A1A1E", wraplength=380)
+        self.album_artist_label = ttk.Label(vinyl_card, text="Place a record on the stand", font=("Helvetica", 12), foreground="#00A8FF", background="#1A1A1E", wraplength=380)
         self.album_artist_label.pack(anchor="w", pady=(0, 4))
 
-        self.album_meta_label = ttk.Label(vinyl_card, text="Anno: -- | Etichetta: -- | Genere: --", font=("Helvetica", 9), foreground="#8E8E98", background="#1A1A1E")
+        self.album_meta_label = ttk.Label(vinyl_card, text="Year: -- | Label: -- | Genre: --", font=("Helvetica", 9), foreground="#8E8E98", background="#1A1A1E")
         self.album_meta_label.pack(anchor="w", pady=(0, 12))
 
-        # Box Marketplace Discogs
+        # Discogs Marketplace Box
         discogs_box = tk.Frame(vinyl_card, bg="#141417", highlightthickness=1, highlightbackground="#2A2A32", padx=10, pady=8)
         discogs_box.pack(fill=tk.X, anchor="s")
 
         header_mkt = tk.Frame(discogs_box, bg="#141417")
         header_mkt.pack(fill=tk.X, pady=(0, 4))
         tk.Label(header_mkt, text="DISCOGS MARKETPLACE", font=("Helvetica", 8, "bold"), fg="#FF8800", bg="#141417").pack(side=tk.LEFT)
-        self.discogs_for_sale_label = tk.Label(header_mkt, text="In vendita: --", font=("Helvetica", 8), fg="#A0A0A8", bg="#141417")
+        self.discogs_for_sale_label = tk.Label(header_mkt, text="For sale: --", font=("Helvetica", 8), fg="#A0A0A8", bg="#141417")
         self.discogs_for_sale_label.pack(side=tk.RIGHT)
 
         stats_row = tk.Frame(discogs_box, bg="#141417")
@@ -218,7 +218,7 @@ class KioskVinylVisionWindow:
         self.price_high_label.pack(side=tk.LEFT, expand=True)
 
         # ====================================================
-        # FRAME 2: TESTI & SPOTIFY PLAYER
+        # FRAME 2: LYRICS & SPOTIFY PLAYER
         # ====================================================
         lyrics_card = ttk.Frame(main_content, style="Card.TFrame", padding=10)
         lyrics_card.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
@@ -233,19 +233,19 @@ class KioskVinylVisionWindow:
         self.cover_canvas.delete("all")
         self.cover_canvas.create_rectangle(5, 5, 215, 215, outline="#2A2A32", width=1, dash=(4, 4))
         self.cover_canvas.create_text(110, 95, text="💿", font=("Arial", 36), fill="#3E3E48")
-        self.cover_canvas.create_text(110, 145, text="Nessun vinile rilevato", font=("Helvetica", 9), fill="#666677")
+        self.cover_canvas.create_text(110, 145, text="No vinyl detected", font=("Helvetica", 9), fill="#666677")
 
     # ==========================================
-    # 2. VISTA: SETTINGS & CALIBRAZIONE
+    # 2. VIEW: SETTINGS & CALIBRATION
     # ==========================================
     def _build_settings_view(self):
         top_bar = ttk.Frame(self.settings_frame, style="Dark.TFrame")
         top_bar.pack(fill=tk.X, padx=20, pady=(15, 10))
 
-        title = ttk.Label(top_bar, text="Calibrazione & Impostazioni Telecamera", font=("Arial", 14, "bold"), foreground="#FFFFFF", background="#121214")
+        title = ttk.Label(top_bar, text="Camera Calibration & Settings", font=("Arial", 14, "bold"), foreground="#FFFFFF", background="#121214")
         title.pack(side=tk.LEFT)
 
-        back_btn = ttk.Button(top_bar, text="✔ Torna a Now Playing", style="Primary.TButton", command=self.show_now_playing_view)
+        back_btn = ttk.Button(top_bar, text="✔ Back to Now Playing", style="Primary.TButton", command=self.show_now_playing_view)
         back_btn.pack(side=tk.RIGHT)
 
         content = ttk.Frame(self.settings_frame, style="Dark.TFrame")
@@ -253,7 +253,7 @@ class KioskVinylVisionWindow:
         content.columnconfigure(0, weight=6)
         content.columnconfigure(1, weight=4)
 
-        # Colonna Sinistra: Canvas Video Nativo con Bounding Diretto
+        # Left Column: Native Camera Canvas
         cam_frame = ttk.Frame(content, style="Card.TFrame", padding=10)
         cam_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
@@ -267,40 +267,40 @@ class KioskVinylVisionWindow:
         )
         self.native_cam_canvas.pack(expand=True)
         
-        # Bind diretti del mouse a pixel esatto senza offset di widget esterni
+        # Mouse Bindings for calibration points
         self.native_cam_canvas.bind("<Button-1>", self._on_canvas_press)
         self.native_cam_canvas.bind("<B1-Motion>", self._on_canvas_drag)
         self.native_cam_canvas.bind("<ButtonRelease-1>", self._on_canvas_release)
 
-        # Colonna Destra: Controlli e Anteprima Crop
+        # Right Column: Controls & AI Crop Preview
         ctrl_frame = ttk.Frame(content, style="Card.TFrame", padding=12)
         ctrl_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
-        ttk.Label(ctrl_frame, text="Controllo Flusso", font=("Arial", 11, "bold"), foreground="#FFFFFF", background="#1A1A1E").pack(anchor="w", pady=(0, 4))
+        ttk.Label(ctrl_frame, text="Stream Control", font=("Arial", 11, "bold"), foreground="#FFFFFF", background="#1A1A1E").pack(anchor="w", pady=(0, 4))
 
         btn_row = ttk.Frame(ctrl_frame, style="Card.TFrame")
         btn_row.pack(fill=tk.X, pady=2)
-        self.start_btn = ttk.Button(btn_row, text="▶ Avvia", style="Primary.TButton", command=self._start_capture)
+        self.start_btn = ttk.Button(btn_row, text="▶ Start", style="Primary.TButton", command=self._start_capture)
         self.start_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
 
-        self.stop_btn = ttk.Button(btn_row, text="⏹ Ferma", command=self._stop_capture)
+        self.stop_btn = ttk.Button(btn_row, text="⏹ Stop", command=self._stop_capture)
         self.stop_btn.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(2, 0))
         self.stop_btn.config(state="disabled")
 
         self.status_label = ttk.Label(ctrl_frame, text="● In Standby", font=("Arial", 9, "bold"), foreground="#FF5555", background="#1A1A1E")
         self.status_label.pack(anchor="w", pady=(2, 6))
 
-        # Anteprima Ritaglio AI
-        ttk.Label(ctrl_frame, text="Porzione Analizzata dall'AI:", font=("Arial", 10, "bold"), foreground="#FFFFFF", background="#1A1A1E").pack(anchor="w", pady=(0, 3))
+        # AI Crop Preview
+        ttk.Label(ctrl_frame, text="AI Processed Crop:", font=("Arial", 10, "bold"), foreground="#FFFFFF", background="#1A1A1E").pack(anchor="w", pady=(0, 3))
         
         self.warp_preview_canvas = tk.Canvas(ctrl_frame, bg="#0E0E10", width=140, height=140, highlightthickness=1, highlightbackground="#33333E", bd=0)
         self.warp_preview_canvas.pack(anchor="center", pady=(0, 6))
-        self.warp_preview_canvas.create_text(70, 70, text="In attesa frame...", fill="#666677", font=("Arial", 8))
+        self.warp_preview_canvas.create_text(70, 70, text="Waiting for frame...", fill="#666677", font=("Arial", 8))
 
-        # Parametri Soglia e Likelihood
+        # Threshold & Likelihood Parameters
         thresh_header = ttk.Frame(ctrl_frame, style="Card.TFrame")
         thresh_header.pack(fill=tk.X, pady=(2, 2))
-        ttk.Label(thresh_header, text="Soglia Minima (Threshold):", style="Detail.TLabel").pack(side=tk.LEFT)
+        ttk.Label(thresh_header, text="Confidence Threshold:", style="Detail.TLabel").pack(side=tk.LEFT)
         self.thresh_val_label = ttk.Label(thresh_header, text=f"{self.confidence_threshold.get():.2f}", font=("Arial", 10, "bold"), foreground="#00A8FF", background="#1A1A1E")
         self.thresh_val_label.pack(side=tk.RIGHT)
 
@@ -316,24 +316,24 @@ class KioskVinylVisionWindow:
 
         like_header = ttk.Frame(ctrl_frame, style="Card.TFrame")
         like_header.pack(fill=tk.X, pady=(2, 2))
-        ttk.Label(like_header, text="Likelihood Attuale:", style="Detail.TLabel").pack(side=tk.LEFT)
+        ttk.Label(like_header, text="Current Likelihood:", style="Detail.TLabel").pack(side=tk.LEFT)
         self.likelihood_label = ttk.Label(like_header, text="0.0%", font=("Arial", 10, "bold"), foreground="#A0A0A8", background="#1A1A1E")
         self.likelihood_label.pack(side=tk.RIGHT)
 
         self.likelihood_bar = ttk.Progressbar(ctrl_frame, orient=tk.HORIZONTAL, mode='determinate', maximum=100)
         self.likelihood_bar.pack(fill=tk.X, pady=(0, 8))
 
-        # Calibrazione Angoli
+        # Corner Calibration Controls
         calib_btn_row = ttk.Frame(ctrl_frame, style="Card.TFrame")
         calib_btn_row.pack(fill=tk.X, pady=2)
 
-        self.calib_toggle_btn = ttk.Button(calib_btn_row, text="🎯 Modifica Angoli", command=self._toggle_calibration_mode)
+        self.calib_toggle_btn = ttk.Button(calib_btn_row, text="🎯 Edit Corners", command=self._toggle_calibration_mode)
         self.calib_toggle_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
 
-        reset_calib_btn = ttk.Button(calib_btn_row, text="Ripristina", command=self._reset_calibration)
+        reset_calib_btn = ttk.Button(calib_btn_row, text="Reset", command=self._reset_calibration)
         reset_calib_btn.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(2, 0))
 
-        self.calib_status_label = ttk.Label(ctrl_frame, text="Stato: Bloccato", style="Detail.TLabel")
+        self.calib_status_label = ttk.Label(ctrl_frame, text="Status: Locked", style="Detail.TLabel")
         self.calib_status_label.pack(anchor="w", pady=(4, 0))
 
     def _on_threshold_change(self, val):
@@ -341,7 +341,7 @@ class KioskVinylVisionWindow:
         self.thresh_val_label.config(text=f"{v:.2f}")
 
     # ==========================================
-    # GESTIONE CALIBRAZIONE E MOUSE INTERATTIVO
+    # CALIBRATION & INTERACTIVE MOUSE HANDLING
     # ==========================================
     def _load_saved_calibration(self):
         calib_file = "calibration.npy"
@@ -354,10 +354,10 @@ class KioskVinylVisionWindow:
                     pts[:, 0] = np.clip(pts[:, 0], 10.0, self.cam_disp_w - 10.0)
                     pts[:, 1] = np.clip(pts[:, 1], 10.0, self.cam_disp_h - 10.0)
                     self.calibrated_corners = pts
-                    logger.info("Caricati punti di calibrazione validati da file")
+                    logger.info("Loaded validated calibration coordinates from file")
                     loaded = True
             except Exception as e:
-                logger.warning(f"Errore lettura calibration.npy: {e}")
+                logger.warning(f"Error reading calibration.npy: {e}")
 
         if not loaded:
             self._reset_calibration()
@@ -368,7 +368,7 @@ class KioskVinylVisionWindow:
 
     def _reset_calibration(self):
         cx, cy = self.cam_disp_w // 2, self.cam_disp_h // 2
-        half_side = 100  # Quadrato di lato 200px perfettamente centrato nel 16:9
+        half_side = 100  # Centered 200px square on 16:9 view
         
         self.calibrated_corners = np.array([
             [cx - half_side, cy - half_side],
@@ -381,30 +381,28 @@ class KioskVinylVisionWindow:
     def _toggle_calibration_mode(self):
         self.is_calibrating = not self.is_calibrating
         if self.is_calibrating:
-            self.calib_toggle_btn.config(text="💾 Salva Angoli")
-            self.calib_status_label.config(text="Stato: Trascina i cerchietti")
+            self.calib_toggle_btn.config(text="💾 Save Corners")
+            self.calib_status_label.config(text="Status: Drag corner pins")
         else:
-            self.calib_toggle_btn.config(text="🎯 Modifica Angoli")
-            self.calib_status_label.config(text="Stato: Bloccato e salvato")
+            self.calib_toggle_btn.config(text="🎯 Edit Corners")
+            self.calib_status_label.config(text="Status: Locked and saved")
             self._save_calibration()
 
     def _on_canvas_press(self, event):
         if not self.is_calibrating or self.calibrated_corners is None:
             return
         
-        # Raggio di click preciso sul centro del punto
         click_pt = np.array([event.x, event.y])
         dists = np.linalg.norm(self.calibrated_corners - click_pt, axis=1)
         min_idx = int(np.argmin(dists))
         
-        if dists[min_idx] < 35:  # Area di cattura confortevole
+        if dists[min_idx] < 35:  # Click grab radius
             self.active_corner_idx = min_idx
 
     def _on_canvas_drag(self, event):
         if not self.is_calibrating or self.active_corner_idx is None or self.calibrated_corners is None:
             return
         
-        # Clamp entro i bordi del canvas
         x = max(0, min(self.cam_disp_w - 1, event.x))
         y = max(0, min(self.cam_disp_h - 1, event.y))
         self.calibrated_corners[self.active_corner_idx] = [x, y]
@@ -414,7 +412,7 @@ class KioskVinylVisionWindow:
         self._save_calibration()
 
     # ==========================================
-    # SWITCH VISTE
+    # VIEW SWITCHING
     # ==========================================
     def show_now_playing_view(self):
         self.current_view = "now_playing"
@@ -433,7 +431,7 @@ class KioskVinylVisionWindow:
             self.show_now_playing_view()
 
     # ==========================================
-    # THREAD BACKGROUND
+    # BACKGROUND THREADS
     # ==========================================
     def _start_capture(self):
         if self.is_capturing:
@@ -442,9 +440,9 @@ class KioskVinylVisionWindow:
         self.is_capturing = True
         self.start_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
-        self.status_label.config(text="● Riconoscimento Attivo", foreground="#00FF66")
+        self.status_label.config(text="● Active Recognition", foreground="#00FF66")
         
-        logger.info("[▶] Avvio Audio Engine e Thread Visione...")
+        logger.info("[▶] Starting Audio Engine and Vision Threads...")
         self.audio_engine.start()
         
         t_cap = threading.Thread(target=self._capture_loop, daemon=True)
@@ -453,7 +451,7 @@ class KioskVinylVisionWindow:
         t_rec.start()
 
     def _capture_loop(self):
-        logger.info("[📷] Inizializzazione Camera...")
+        logger.info("[📷] Initializing Camera...")
         
         cam_idx = 0
         if isinstance(self.config, dict):
@@ -463,7 +461,7 @@ class KioskVinylVisionWindow:
         if not cap.isOpened():
             cap = cv2.VideoCapture(0)
 
-        logger.info("[📷] Stream Camera attivo.")
+        logger.info("[📷] Camera Stream active.")
 
         while self.running and self.is_capturing:
             ret, f = cap.read()
@@ -472,11 +470,11 @@ class KioskVinylVisionWindow:
             time.sleep(0.03)
 
         cap.release()
-        logger.info("[📷] Stream Camera arrestato.")
+        logger.info("[📷] Camera Stream stopped.")
 
     @staticmethod
     def _order_points(pts: np.ndarray) -> np.ndarray:
-        """Ordina i 4 punti: Top-Left, Top-Right, Bottom-Right, Bottom-Left."""
+        """Order 4 points: Top-Left, Top-Right, Bottom-Right, Bottom-Left."""
         rect = np.zeros((4, 2), dtype=np.float32)
         s = pts.sum(axis=1)
         rect[0] = pts[np.argmin(s)]       # Top-Left
@@ -488,21 +486,21 @@ class KioskVinylVisionWindow:
         return rect
 
     def _recognition_loop(self):
-        logger.info("[🧠] Thread Inferenza AI avviato.")
+        logger.info("[🧠] AI Inference Thread started.")
         while self.running and self.is_capturing:
             if self.latest_frame is not None and self.calibrated_corners is not None:
                 try:
                     frame = self.latest_frame.copy()
                     frame_h, frame_w = frame.shape[:2]
 
-                    # 1. Mappatura coordinate dal canvas alla risoluzione nativa
+                    # 1. Map Coordinates from Canvas to Native Camera Resolution
                     pts = self.calibrated_corners.copy()
                     pts[:, 0] *= (frame_w / float(self.cam_disp_w))
                     pts[:, 1] *= (frame_h / float(self.cam_disp_h))
 
                     ordered_pts = self._order_points(pts)
 
-                    # 2. Warp Prospettico
+                    # 2. Perspective Warp
                     out_size = 300
                     dst_pts = np.array([
                         [0, 0],
@@ -520,32 +518,31 @@ class KioskVinylVisionWindow:
                     match_found = None
                     best_score = 0.0
 
-                    # 3. Estrazione Vettore & Ricerca Vettoriale
+                    # 3. Feature Extraction & Vector Search
                     if hasattr(self.feature_extractor, 'extract_features'):
                         emb = self.feature_extractor.extract_features(rgb_crop)
                         db = getattr(self.pipeline, 'database', None) or getattr(self.pipeline, 'db', None)
                         
                         if db is not None:
-                            # Disabilita temporaneamente il filtro interno del database per ottenere il punteggio grezzo
+                            # Disable internal threshold filter to get raw confidence score
                             for attr in ['similarity_threshold', 'threshold', 'min_confidence', 'min_similarity']:
                                 if hasattr(db, attr):
                                     setattr(db, attr, 0.0)
 
-                            # Interroga ChromaDB / Collection direttamente se accessibile per avere la distanza esatta
+                            # Direct collection query if available
                             if hasattr(db, 'collection') and hasattr(db.collection, 'query'):
                                 try:
                                     q_emb = emb.tolist() if hasattr(emb, 'tolist') else emb
                                     res = db.collection.query(query_embeddings=[q_emb], n_results=1)
                                     if res and res.get('distances') and len(res['distances'][0]) > 0:
                                         dist = float(res['distances'][0][0])
-                                        # Distanza Coseno ChromaDB -> Similarità (1.0 - dist)
                                         best_score = max(0.0, 1.0 - dist)
                                         if res.get('metadatas') and len(res['metadatas'][0]) > 0:
                                             match_found = res['metadatas'][0][0]
                                 except Exception:
                                     pass
 
-                            # Se non ha interrogato direttamente la collection, usa search_similar standard
+                            # Fallback to search_similar
                             if match_found is None and hasattr(db, 'search_similar'):
                                 raw = db.search_similar(emb)
                                 if raw:
@@ -563,22 +560,22 @@ class KioskVinylVisionWindow:
                                             if 'distance' in top:
                                                 best_score = max(0.0, 1.0 - float(top['distance']))
 
-                    # Normalizza punteggio se in scala 0-100
+                    # Normalize if on a 0-100 scale
                     if best_score > 1.0:
                         best_score = best_score / 100.0
 
                     self.last_likelihood = max(0.0, min(1.0, best_score))
 
-                    # 4. Se supera la soglia della GUI, invia alla coda per il Now Playing
+                    # 4. Enqueue match if threshold is met
                     current_threshold = self.confidence_threshold.get()
                     if match_found and self.last_likelihood >= current_threshold:
-                        title = match_found.get('title', 'N/D') if isinstance(match_found, dict) else str(match_found)
-                        logger.info(f"[✔] Match Valido ({self.last_likelihood:.1%}): {title}")
+                        title = match_found.get('title', 'N/A') if isinstance(match_found, dict) else str(match_found)
+                        logger.info(f"[✔] Valid Match ({self.last_likelihood:.1%}): {title}")
                         if not self.result_queue.full():
                             self.result_queue.put(match_found)
 
                 except Exception as e:
-                    logger.error(f"[!] Errore inferenza AI: {e}")
+                    logger.error(f"[!] AI Inference Error: {e}")
 
             time.sleep(0.35)
 
@@ -589,10 +586,10 @@ class KioskVinylVisionWindow:
         if hasattr(self, 'stop_btn'):
             self.stop_btn.config(state="disabled")
         if hasattr(self, 'status_label'):
-            self.status_label.config(text="● Sistema in Standby", foreground="#FF5555")
+            self.status_label.config(text="● System in Standby", foreground="#FF5555")
         
         self.audio_engine.stop()
-        logger.info("Pipeline di acquisizione fermata.")
+        logger.info("Capture pipeline stopped.")
 
     # ==========================================
     # UI UPDATE LOOP
@@ -603,7 +600,7 @@ class KioskVinylVisionWindow:
 
         try:
             if self.current_view == "settings":
-                # 1. Feed Video
+                # 1. Video Feed
                 if self.latest_frame is not None:
                     disp_frame = cv2.resize(self.latest_frame, (self.cam_disp_w, self.cam_disp_h))
                     if self.calibrated_corners is not None:
@@ -623,7 +620,7 @@ class KioskVinylVisionWindow:
                     self.native_cam_canvas.delete("all")
                     self.native_cam_canvas.create_image(0, 0, anchor=tk.NW, image=self._cam_tk)
 
-                # 2. Anteprima Crop AI
+                # 2. AI Crop Preview
                 if self.latest_warped_rgb is not None:
                     try:
                         pil_crop = Image.fromarray(self.latest_warped_rgb)
@@ -634,26 +631,26 @@ class KioskVinylVisionWindow:
                     except Exception:
                         pass
 
-                # 3. Aggiornamento Likelihood & Progress Bar (Sempre eseguito in settings)
+                # 3. Update Likelihood & Progress Bar
                 if hasattr(self, 'likelihood_bar') and hasattr(self, 'likelihood_label'):
                     pct = self.last_likelihood * 100.0
                     self.likelihood_bar['value'] = pct
                     
                     thresh_pct = self.confidence_threshold.get() * 100.0
                     if pct >= thresh_pct and pct > 0.0:
-                        self.likelihood_label.config(text=f"{pct:.1f}% (VALIDO)", foreground="#00FF66")
+                        self.likelihood_label.config(text=f"{pct:.1f}% (VALID)", foreground="#00FF66")
                     else:
                         color = "#00A8FF" if pct > 30.0 else "#A0A0A8"
                         self.likelihood_label.config(text=f"{pct:.1f}%", foreground=color)
 
-            # 4. Risultati riconoscimento copertina
+            # 4. Cover Recognition Results
             try:
                 match_result = self.result_queue.get_nowait()
                 self._apply_recognized_disc(match_result)
             except queue.Empty:
                 pass
 
-            # 5. Spettro Audio FFT, Testi e Progress Bar Robusta
+            # 5. FFT Audio Spectrum, Lyrics & Progress Bar
             if self.audio_engine.running:
                 fft_vals = self.audio_engine.get_fft_spectrum()
                 self.audio_visualizer.render_spectrum(fft_vals)
@@ -662,31 +659,29 @@ class KioskVinylVisionWindow:
                 now = time.time()
                 start_t = getattr(self.audio_engine, 'playback_start_time', 0.0)
                 
-                # Tempo trascorso effettivo
+                # Elapsed Time
                 elapsed_sec = max(0.0, now - start_t) if start_t > 0 else 0.0
                 
-                # Durata reale
+                # Track Duration
                 total_duration = getattr(self.audio_engine, 'current_duration', 0.0)
                 
-                # Se la durata reale non è disponibile:
+                # Fallback duration calculation
                 if total_duration <= 0.0:
                     lines = getattr(self.audio_engine, 'lyrics_lines', [])
                     if lines:
                         try:
-                            # Prendi l'ultima riga + 25 secondi di outro
                             last_t = float(lines[-1][0])
                             total_duration = max(last_t + 25.0, elapsed_sec)
                         except Exception:
                             total_duration = 0.0
 
-                # Se elapsed_sec supera la durata (ad es. outro lungo), allinea il totale
                 if total_duration > 0 and elapsed_sec > total_duration:
                     total_duration = elapsed_sec
 
-                # Aggiorna Barra Spotify
+                # Update Progress Bar
                 self.lyrics_display.update_progress(elapsed_sec, total_duration)
 
-                # Aggiorna testi a 7 righe
+                # Update 7-Line Lyrics
                 try:
                     if hasattr(self.audio_engine, 'get_7_lyrics_lines'):
                         p3, p2, p1, curr, n1, n2, n3 = self.audio_engine.get_7_lyrics_lines()
@@ -699,7 +694,7 @@ class KioskVinylVisionWindow:
                     self.audio_engine.trigger_background_identify()
 
         except Exception as e:
-            logger.error(f"Errore UI update: {e}")
+            logger.error(f"UI update error: {e}")
 
         if self.running:
             self.root.after(30, self._update_ui)
@@ -710,21 +705,21 @@ class KioskVinylVisionWindow:
             return
         self.last_matched_id = disc_id
 
-        # 1. Metadati Principali
-        title = match.get('title') or match.get('album') or 'Titolo Sconosciuto'
-        artist = match.get('artist') or match.get('artists') or 'Artista Sconosciuto'
-        year = match.get('year') or match.get('released') or 'N/D'
-        label = match.get('label') or match.get('record_label') or 'N/D'
-        genre = match.get('genre') or match.get('genres', 'N/D')
+        # 1. Main Metadata
+        title = match.get('title') or match.get('album') or 'Unknown Title'
+        artist = match.get('artist') or match.get('artists') or 'Unknown Artist'
+        year = match.get('year') or match.get('released') or 'N/A'
+        label = match.get('label') or match.get('record_label') or 'N/A'
+        genre = match.get('genre') or match.get('genres', 'N/A')
         if isinstance(genre, list):
             genre = ", ".join(str(g) for g in genre[:2])
 
         self.album_title_label.config(text=title)
         self.album_artist_label.config(text=artist)
-        self.album_meta_label.config(text=f"Anno: {year} | Etichetta: {label} | Genere: {genre}")
+        self.album_meta_label.config(text=f"Year: {year} | Label: {label} | Genre: {genre}")
 
-        # 2. Reset / Richiesta Marketplace
-        self.discogs_for_sale_label.config(text="In vendita: Ricerca quotazioni...")
+        # 2. Reset / Request Marketplace Info
+        self.discogs_for_sale_label.config(text="For sale: Fetching rates...")
         self.price_low_label.config(text="Min: --")
         self.price_med_label.config(text="Med: --")
         self.price_high_label.config(text="Max: --")
@@ -732,7 +727,7 @@ class KioskVinylVisionWindow:
         if disc_id:
             threading.Thread(target=self._fetch_marketplace_data_async, args=(disc_id,), daemon=True).start()
 
-        # 3. Caricamento Copertina
+        # 3. Load Artwork Cover
         cover_candidates = []
         for k in ['cover_image_path', 'cover_path', 'image_path', 'local_image_path', 'cover_file', 'cover']:
             val = match.get(k)
@@ -768,19 +763,18 @@ class KioskVinylVisionWindow:
             self.cover_canvas.create_text(110, 145, text=title[:24], font=("Helvetica", 9, "bold"), fill="#FFFFFF")
 
     def _fetch_marketplace_data_async(self, release_id: Any):
-        """Interroga l'API ufficiale di Discogs in modo autenticato per ricavare quotazioni e copie."""
+        """Authenticated Discogs API request for release stats and pricing."""
         try:
             rel_id_int = int(release_id)
-            logger.info(f"[🛒] Richiesta dati Marketplace per Release Discogs ID: {rel_id_int}")
+            logger.info(f"[🛒] Fetching Marketplace data for Discogs Release ID: {rel_id_int}")
             
-            # Recupera le credenziali configurate
             discogs_cfg = self.config.get('discogs', {}) if isinstance(self.config, dict) else {}
             d_key = discogs_cfg.get('consumer_key') or discogs_cfg.get('key') or os.getenv('DISCOGS_KEY', '')
             d_secret = discogs_cfg.get('consumer_secret') or discogs_cfg.get('secret') or os.getenv('DISCOGS_SECRET', '')
 
             mkt_data = {}
 
-            # 1. Chiamata HTTP autenticata con Key & Secret su api.discogs.com/releases/{id}
+            # HTTP Request
             import urllib.request
             import json
 
@@ -804,31 +798,30 @@ class KioskVinylVisionWindow:
                     'currency': '€'
                 }
 
-                # Se ci sono note o stime sulla community
                 if 'community' in data and 'rating' in data['community']:
                     mkt_data['rating'] = data['community']['rating'].get('average')
 
-            logger.info(f"[🛒] Discogs Response: Copie in vendita={mkt_data.get('num_for_sale')}, Min={mkt_data.get('lowest_price')}")
+            logger.info(f"[🛒] Discogs Response: For sale={mkt_data.get('num_for_sale')}, Min={mkt_data.get('lowest_price')}")
             self.root.after(0, lambda: self._update_marketplace_ui(mkt_data))
 
         except Exception as e:
-            logger.warning(f"[!] Errore recupero quotazioni Discogs per ID {release_id}: {e}")
-            self.root.after(0, lambda: self.discogs_for_sale_label.config(text="In vendita: Non disp."))
+            logger.warning(f"[!] Error retrieving Discogs rates for ID {release_id}: {e}")
+            self.root.after(0, lambda: self.discogs_for_sale_label.config(text="For sale: N/A"))
 
     def _update_marketplace_ui(self, data: Dict[str, Any]):
-        """Formatta e popola i dati del marketplace e le fasce di prezzo."""
+        """Formats and populates marketplace data and price tiers."""
         num = data.get('num_for_sale')
         curr = data.get('currency', '€')
         low = data.get('lowest_price')
 
         if num is not None:
-            self.discogs_for_sale_label.config(text=f"In vendita: {num} copie")
+            self.discogs_for_sale_label.config(text=f"For sale: {num} copies")
         else:
-            self.discogs_for_sale_label.config(text="In vendita: 0 copie")
+            self.discogs_for_sale_label.config(text="For sale: 0 copies")
 
         if low is not None and float(low) > 0:
             low_val = float(low)
-            # Calcolo stime per le condizioni VG+ e Mint
+            # Estimated VG+ and Mint values
             med_val = low_val * 1.45
             high_val = low_val * 2.20
 

@@ -28,15 +28,15 @@ class CameraDisplay(tk.Label):
         self.fps_counter = 0
         self.current_fps = 0.0
         
-        # Gestione Calibrazione Live
+        # Live Calibration Handling
         self.calibration_mode = False
-        self.corners: List[List[float]] = []  # Coordinate [x, y] nello spazio originale del frame
+        self.corners: List[List[float]] = []  # [x, y] coordinates in original frame space
         self.selected_corner_idx = -1
         self.scale = 1.0
         self.frame_dims = (height, width)  # (h, w)
         self.on_corners_changed = on_corners_changed
 
-        # Bind eventi mouse per il trascinamento dei punti
+        # Mouse event bindings for corner dragging
         self.bind("<Button-1>", self._on_mouse_down)
         self.bind("<B1-Motion>", self._on_mouse_drag)
         self.bind("<ButtonRelease-1>", self._on_mouse_up)
@@ -50,12 +50,12 @@ class CameraDisplay(tk.Label):
         )
     
     def set_calibration_mode(self, enabled: bool):
-        """Attiva o disattiva la modalità calibrazione interattiva."""
+        """Enable or disable interactive calibration mode."""
         self.calibration_mode = enabled
         self.configure(cursor="crosshair" if enabled else "arrow")
 
     def set_corners(self, corners: Optional[Any]):
-        """Imposta i 4 vertici di calibrazione iniziali."""
+        """Set the 4 initial calibration corner coordinates."""
         if corners is not None and len(corners) == 4:
             self.corners = [[float(p[0]), float(p[1])] for p in corners]
         else:
@@ -65,11 +65,11 @@ class CameraDisplay(tk.Label):
         if not self.calibration_mode or len(self.corners) != 4 or self.scale <= 0:
             return
         
-        # Converte coordinate click dalla UI allo spazio pixel originale della camera
+        # Convert UI click coordinates to original camera pixel space
         click_x = event.x / self.scale
         click_y = event.y / self.scale
         
-        # Raggio di tolleranza per agganciare il punto con il cursore (25px su schermo)
+        # Tolerance radius to grab handle (25px on screen)
         hit_radius = 25 / self.scale
         
         self.selected_corner_idx = -1
@@ -107,7 +107,7 @@ class CameraDisplay(tk.Label):
             new_w = int(w * self.scale)
             new_h = int(h * self.scale)
             
-            # Se la lista dei punti è vuota, crea un quadrilatero di default
+            # If corner list is empty, initialize default quadrilateral
             if len(self.corners) != 4:
                 if detected_corners is not None and len(detected_corners) == 4:
                     self.corners = [[float(p[0]), float(p[1])] for p in detected_corners]
@@ -132,7 +132,7 @@ class CameraDisplay(tk.Label):
                 scaled_pts = [(int(p[0] * self.scale), int(p[1] * self.scale)) for p in self.corners]
                 
                 if self.calibration_mode:
-                    # In modalità calibrazione: poligono magenta e cerchi di controllo interattivi
+                    # In calibration mode: magenta polygon and interactive control handles
                     draw.polygon(scaled_pts, outline="#FF007F", width=3)
                     labels = ["TL", "TR", "BR", "BL"]
                     handle_colors = ["#FF3333", "#FFFF33", "#3388FF", "#FF33FF"]
@@ -141,11 +141,11 @@ class CameraDisplay(tk.Label):
                         draw.ellipse([pt[0]-r, pt[1]-r, pt[0]+r, pt[1]+r], fill=col, outline="white", width=2)
                         draw.text((pt[0] + 12, pt[1] - 8), lbl, fill="white", font=font)
                     
-                    draw.text((15, 15), "CALIBRAZIONE LIVE - Trascina i 4 cerchi sugli angoli del supporto", fill="#FFCC00", font=font)
+                    draw.text((15, 15), "LIVE CALIBRATION - Drag the 4 corner pins to align the stand", fill="#FFCC00", font=font)
                 else:
-                    # Visualizzazione normale: poligono verde sull'area calibrata
+                    # Normal mode: green polygon around calibrated area
                     draw.polygon(scaled_pts, outline="#00FF66", width=2)
-                    draw.text((scaled_pts[0][0] + 5, max(5, scaled_pts[0][1] - 18)), "AREA VINILE (WARP 1:1)", fill="#00FF66", font=font)
+                    draw.text((scaled_pts[0][0] + 5, max(5, scaled_pts[0][1] - 18)), "VINYL AREA (WARP 1:1)", fill="#00FF66", font=font)
                 
                 if self.fps_display:
                     self._draw_fps(draw, (new_w, new_h))
@@ -244,7 +244,6 @@ class ConfidenceMeter(ttk.Frame):
         info_frame = ttk.Frame(self)
         info_frame.pack(fill="x", pady=2)
         
-        # Etichetta ben visibile per la likelihood attuale
         self.value_label = ttk.Label(info_frame, text="Likelihood: 0.0%", font=("Arial", 9, "bold"))
         self.value_label.pack(side="left")
         
@@ -252,7 +251,7 @@ class ConfidenceMeter(ttk.Frame):
         self.threshold_label.pack(side="right")
     
     def update_confidence(self, confidence: float):
-        """Aggiorna il valore di Likelihood attuale."""
+        """Updates the current likelihood value."""
         self.confidence_var.set(confidence * 100)
         self.value_label.config(text=f"Likelihood: {confidence:.1%}")
         
@@ -393,8 +392,10 @@ class PerformanceMonitor(ttk.LabelFrame):
     def update_metrics(self, **kwargs):
         self.metrics.update(kwargs)
 
+
 class AudioSpectrumVisualizer(tk.Canvas):
-    """Visualizzatore spettro sonoro FFT in stile barre equalizzatore retro."""
+    """Real-time retro FFT audio spectrum equalizer bar visualizer."""
+    
     def __init__(self, parent, width=300, height=80, **kwargs):
         super().__init__(parent, width=width, height=height, bg="#111115", highlightthickness=0, **kwargs)
         self.w = width
@@ -402,6 +403,8 @@ class AudioSpectrumVisualizer(tk.Canvas):
 
     def render_spectrum(self, fft_bands: np.ndarray):
         self.delete("all")
+        if fft_bands is None:
+            return
         n_bars = len(fft_bands)
         if n_bars == 0:
             return
@@ -415,58 +418,58 @@ class AudioSpectrumVisualizer(tk.Canvas):
             y0 = self.h - bar_height
             y1 = self.h
             
-            # Gradiente cromatico: Verde -> Giallo -> Rosso sui picchi
+            # Color gradient: Green -> Yellow -> Red on peak levels
             color = "#00FF66" if val < 0.6 else ("#FFFF00" if val < 0.85 else "#FF0055")
             self.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
 
 
 class LyricsDisplay(ttk.Frame):
-    """Visualizzatore testi a 7 righe e Progress Bar stile Spotify con centratura verticale."""
+    """7-line synchronized lyrics display and Spotify-style Progress Bar with vertical centering."""
     
     def __init__(self, parent, **kwargs):
         super().__init__(parent, style="Card.TFrame", **kwargs)
         self.configure(padding=10)
         
-        # 1. Header traccia
+        # 1. Track header
         self.track_header = tk.Label(
             self, 
-            text="TESTI SINCRONIZZATI", 
+            text="SYNCHRONIZED LYRICS", 
             font=("Helvetica", 9, "bold"), 
             fg="#1DB954",  # Spotify Green
             bg="#1A1A1E"
         )
         self.track_header.pack(anchor="w", pady=(0, 4))
 
-        # 2. Contenitore testi: occupa tutto lo spazio disponibile per centrare verticalmente
+        # 2. Lyrics lines container (expands to center vertically)
         self.lines_container = tk.Frame(self, bg="#1A1A1E")
         self.lines_container.pack(fill=tk.BOTH, expand=True)
 
-        # 7 Righe con dissolvenza progressiva verso i bordi
-        # Riga -3 (molto sfumata)
+        # 7 Lines with gradual fading toward borders
+        # Line -3 (faded)
         self.lbl_p3 = tk.Label(self.lines_container, text="", font=("Helvetica", 9), fg="#303038", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
         self.lbl_p3.pack(fill=tk.BOTH, expand=True, pady=1)
 
-        # Riga -2 (sfumata)
+        # Line -2 (faded)
         self.lbl_p2 = tk.Label(self.lines_container, text="", font=("Helvetica", 11), fg="#484855", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
         self.lbl_p2.pack(fill=tk.BOTH, expand=True, pady=1)
 
-        # Riga -1 (quasi attiva)
+        # Line -1 (near active)
         self.lbl_p1 = tk.Label(self.lines_container, text="", font=("Helvetica", 13), fg="#757585", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
         self.lbl_p1.pack(fill=tk.BOTH, expand=True, pady=2)
 
-        # Riga 0 (ATTIVA / NOW SINGING)
-        self.lbl_curr = tk.Label(self.lines_container, text="In attesa del brano...", font=("Helvetica", 16, "bold"), fg="#FFFFFF", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
+        # Line 0 (ACTIVE / NOW SINGING)
+        self.lbl_curr = tk.Label(self.lines_container, text="Waiting for track...", font=("Helvetica", 16, "bold"), fg="#FFFFFF", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
         self.lbl_curr.pack(fill=tk.BOTH, expand=True, pady=3)
 
-        # Riga +1 (prossima riga)
+        # Line +1 (next line)
         self.lbl_n1 = tk.Label(self.lines_container, text="", font=("Helvetica", 13), fg="#757585", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
         self.lbl_n1.pack(fill=tk.BOTH, expand=True, pady=2)
 
-        # Riga +2 (successiva)
+        # Line +2 (upcoming)
         self.lbl_n2 = tk.Label(self.lines_container, text="", font=("Helvetica", 11), fg="#484855", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
         self.lbl_n2.pack(fill=tk.BOTH, expand=True, pady=1)
 
-        # Riga +3 (molto sfumata)
+        # Line +3 (faded upcoming)
         self.lbl_n3 = tk.Label(self.lines_container, text="", font=("Helvetica", 9), fg="#303038", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
         self.lbl_n3.pack(fill=tk.BOTH, expand=True, pady=1)
 
@@ -492,7 +495,7 @@ class LyricsDisplay(ttk.Frame):
         return f"{m}:{sec:02d}"
 
     def update_progress(self, current_sec: float, total_sec: float):
-        """Aggiorna la barra e i timestamp di riproduzione."""
+        """Updates progress bar and playback timestamps."""
         self.time_cur_lbl.config(text=self._format_time(current_sec))
         
         if total_sec > 0:
@@ -506,14 +509,14 @@ class LyricsDisplay(ttk.Frame):
             self.prog_canvas.coords(self.prog_bar, 0, 0, 0, 5)
 
     def update_lyrics_7lines(self, track_name: str, p3: str, p2: str, p1: str, curr: str, n1: str, n2: str, n3: str):
-        """Aggiorna le 7 righe contemporaneamente."""
+        """Updates all 7 lyrics lines simultaneously."""
         if track_name:
-            self.track_header.config(text=f"TESTI • {track_name.upper()}")
+            self.track_header.config(text=f"LYRICS • {track_name.upper()}")
             
         self.lbl_p3.config(text=p3 or "")
         self.lbl_p2.config(text=p2 or "")
         self.lbl_p1.config(text=p1 or "")
-        self.lbl_curr.config(text=curr or ("..." if track_name else "In attesa del brano..."))
+        self.lbl_curr.config(text=curr or ("..." if track_name else "Waiting for track..."))
         self.lbl_n1.config(text=n1 or "")
         self.lbl_n2.config(text=n2 or "")
         self.lbl_n3.config(text=n3 or "")
