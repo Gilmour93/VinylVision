@@ -74,7 +74,7 @@ source venv/bin/Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 2. Clone & Setup Environment
+### 2. Initialize configuration file
 Copy the example configuration file:
 ```bash
 cp config/config.example.py config/config.py
