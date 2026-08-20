@@ -129,6 +129,82 @@ def enhance_contrast(image: np.ndarray, alpha: float = 1.2, beta: int = 10) -> n
         logger.error(f"Error enhancing contrast: {e}")
         return image
 
+def order_points(pts: np.ndarray) -> np.ndarray:
+    """Ordina 4 punti in sequenza: top-left, top-right, bottom-right, bottom-left."""
+    rect = np.zeros((4, 2), dtype="float32")
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]  # top-left ha la somma x+y minima
+    rect[2] = pts[np.argmax(s)]  # bottom-right ha la somma x+y massima
+
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]  # top-right ha la diff y-x minima
+    rect[3] = pts[np.argmax(diff)]  # bottom-left ha la diff y-x massima
+    return rect
+
+
+def four_point_transform(image: np.ndarray, pts: np.ndarray, target_dim: int = 500) -> Optional[np.ndarray]:
+    """
+    Raddrizza prospetticamente un quadrilatero trasformandolo in un quadrato perfetto (1:1).
+    Risolve il problema della telecamera angolata o posizionata più in basso.
+    """
+    try:
+        rect = order_points(pts)
+        dst = np.array([
+            [0, 0],
+            [target_dim - 1, 0],
+            [target_dim - 1, target_dim - 1],
+            [0, target_dim - 1]
+        ], dtype="float32")
+
+        # Calcola la matrice di trasformazione prospettica e applicala
+        M = cv2.getPerspectiveTransform(rect, dst)
+        warped = cv2.warpPerspective(image, M, (target_dim, target_dim))
+        return warped
+    except Exception as e:
+        logger.error(f"Errore warp prospettico: {e}")
+        return None
+
+def find_vinyl_quadrilateral(frame: np.ndarray, min_area_ratio: float = 0.05) -> Optional[np.ndarray]:
+    """
+    Rileva il quadrilatero del vinile anche con prospettiva dal basso.
+    """
+    try:
+        h, w = frame.shape[:2]
+        total_area = h * w
+        
+        # Preprocessing: scala di grigi e blur
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.bilateralFilter(gray, 9, 75, 75)
+        
+        # Rilevamento bordi combinato (Canny + Morfologia)
+        edged = cv2.Canny(blurred, 30, 120)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        closed = cv2.morphologyEx(edged, cv2.MORPH_CLOSE, kernel)
+        
+        contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return None
+            
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+        
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area < total_area * min_area_ratio:
+                continue
+                
+            peri = cv2.arcLength(c, True)
+            # Tolleranza del poligono al 4% del perimetro
+            approx = cv2.approxPolyDP(c, 0.04 * peri, True)
+            
+            if len(approx) == 4 and cv2.isContourConvex(approx):
+                pts = approx.reshape(4, 2)
+                return pts
+                
+        return None
+    except Exception as e:
+        logger.error(f"Errore auto-detection: {e}")
+        return None
+
 
 def correct_perspective(image: np.ndarray, corners: np.ndarray) -> Optional[np.ndarray]:
     """

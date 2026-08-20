@@ -8,6 +8,7 @@ import time
 from typing import Dict, Any, Optional, List
 import discogs_client
 from loguru import logger
+import requests
 
 
 class DiscogsClient:
@@ -224,3 +225,46 @@ class DiscogsClient:
             return []
         except:
             return []
+    
+    def get_user_collection(self, username: str, page: int = 1, per_page: int = 50) -> Optional[Dict[str, Any]]:
+        """
+        Recupera gli album dalla collezione di un utente Discogs.
+        
+        Args:
+            username: Nome utente su Discogs
+            page: Numero di pagina per la paginazione
+            per_page: Numero di elementi per pagina (max 100)
+            
+        Returns:
+            Dati grezzi della collezione da Discogs
+        """
+        # Verifica la presenza della sessione o dei parametri base
+        session = getattr(self, 'session', requests)
+        base_url = getattr(self, 'base_url', 'https://api.discogs.com')
+        
+        url = f"{base_url}/users/{username}/collection/folders/0/releases"
+        params = {
+            'page': page,
+            'per_page': per_page,
+            'sort': 'added',
+            'sort_order': 'desc'
+        }
+        
+        # Recupera headers o costruisce quelli con consumer key/secret
+        if hasattr(self, '_get_headers') and callable(self._get_headers):
+            headers = self._get_headers()
+        else:
+            user_agent = getattr(self, 'user_agent', 'VinylVision/1.0')
+            headers = {'User-Agent': user_agent}
+            key = getattr(self, 'consumer_key', '')
+            secret = getattr(self, 'consumer_secret', '')
+            if key and secret:
+                headers['Authorization'] = f'Discogs key={key}, secret={secret}'
+        
+        try:
+            response = session.get(url, params=params, headers=headers, timeout=15)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Errore durante il recupero della collezione per l'utente '{username}': {e}")
+            return None

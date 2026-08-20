@@ -82,16 +82,9 @@ class AlbumDataPipeline:
             logger.error(f"Error initializing album pipeline: {e}")
             return False
     
+    """
     def download_album_cover(self, image_url: str) -> Optional[np.ndarray]:
-        """
-        Download album cover image from URL.
-        
-        Args:
-            image_url: URL of the album cover image
-            
-        Returns:
-            Optional[np.ndarray]: Downloaded image as numpy array or None if failed
-        """
+
         try:
             if not image_url:
                 logger.warning("No image URL provided")
@@ -111,6 +104,41 @@ class AlbumDataPipeline:
             # Convert to numpy array
             image_array = np.array(image)
             
+            logger.debug(f"Downloaded album cover: {image_array.shape}")
+            return image_array
+            
+        except Exception as e:
+            logger.error(f"Error downloading album cover from {image_url}: {e}")
+            return None
+    """
+
+
+    def download_album_cover(self, image_url: str) -> Optional[np.ndarray]:
+        """
+        Download album cover image from URL.
+        """
+        try:
+            if not image_url:
+                logger.warning("No image URL provided")
+                return None
+            
+            # Headers specifici per il CDN delle immagini di Discogs (i.discogs.com)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.discogs.com/'
+            }
+            
+            response = requests.get(image_url, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            # Conversione in PIL Image e RGB
+            image = Image.open(io.BytesIO(response.content))
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            image_array = np.array(image)
             logger.debug(f"Downloaded album cover: {image_array.shape}")
             return image_array
             
@@ -178,7 +206,6 @@ class AlbumDataPipeline:
             # Check if album already exists in database
             existing_count = self.database.get_album_count()
             if existing_count > 0:
-                # Could add duplicate checking here in the future
                 pass
             
             # Download album cover
@@ -192,6 +219,18 @@ class AlbumDataPipeline:
                 logger.warning(f"Failed to download cover for album {album_id}")
                 return None
             
+            # --- NOVITÀ: Salva la copertina sul disco locale ---
+            covers_dir = "data/covers"
+            os.makedirs(covers_dir, exist_ok=True)
+            local_cover_path = os.path.join(covers_dir, f"{album_id}.jpg")
+            
+            # Salva l'array RGB come JPEG
+            Image.fromarray(album_image).save(local_cover_path, quality=90)
+            
+            # Aggiungi il path locale ai metadati per ChromaDB
+            album_data['local_cover_path'] = local_cover_path
+            # ----------------------------------------------------
+            
             # Preprocess image for model
             preprocessed_image = preprocess_for_model(
                 album_image, 
@@ -199,15 +238,15 @@ class AlbumDataPipeline:
                 enhance=True
             )
             
-            # Extract features
-            features = self.feature_extractor.extract_features(preprocessed_image)
+            # Extract features specificando is_bgr=False (l'immagine scaricata è RGB)
+            features = self.feature_extractor.extract_features(preprocessed_image, is_bgr=False)
             if features is None:
                 logger.error(f"Failed to extract features for album {album_id}")
                 return None
             
             # Store in database
             success = self.database.add_album(
-                album_id=album_id,
+                album_id=str(album_id),
                 embedding=features,
                 metadata=album_data
             )
@@ -220,7 +259,6 @@ class AlbumDataPipeline:
                     'image_shape': album_image.shape,
                     'stored_in_db': True
                 }
-                
                 logger.info(f"Successfully processed album: {album_data.get('artist', 'Unknown')} - {album_data.get('title', 'Unknown')}")
                 return processed_data
             else:
@@ -230,55 +268,110 @@ class AlbumDataPipeline:
         except Exception as e:
             logger.error(f"Error processing single album: {e}")
             return None
+
+    def sync_user_collection(self, username: str, max_albums: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Scarica, processa e indicizza in modo incrementale la collezione Discogs.
+        """
+        import time
+        if not self.is_initialized:
+            logger.error("Pipeline not initialized")
+            return {"error": "Pipeline non inizializzata"}
+            
+        stats = {
+            "total_found": 0,
+            "imported": 0,
+            "skipped": 0,
+            "errors": 0
+        }
+        
+        logger.info(f"Avvio sincronizzazione incrementale per: {username}")
+        page = 1
+        
+        while True:
+            data = self.discogs_client.get_user_collection(username, page=page, per_page=50)
+            if not data or 'releases' not in data:
+                break
+                
+            releases = data.get('releases', [])
+            if not releases:
+                break
+                
+            total_items = data.get('pagination', {}).get('items', len(releases))
+            stats["total_found"] = total_items
+            pages_total = data.get('pagination', {}).get('pages', 1)
+            
+            for item in releases:
+                if max_albums and stats["imported"] >= max_albums:
+                    return stats
+                    
+                basic_info = item.get('basic_information', {})
+                release_id = str(basic_info.get('id'))
+                artists = ", ".join([a.get('name', '') for a in basic_info.get('artists', [])])
+                title = basic_info.get('title', 'Unknown Title')
+                
+                # CONTROLLO INCREMENTALE: se l'album c'è già, saltalo subito!
+                if self.database.album_exists(release_id):
+                    stats["skipped"] += 1
+                    logger.debug(f"[GIÀ PRESENTE] Saltato: {artists} - {title}")
+                    continue
+                
+                # Se è un disco nuovo, procedi con download ed embedding
+                cover_image = basic_info.get('cover_image') or basic_info.get('thumb')
+                album_data = {
+                    'id': release_id,
+                    'artist': artists,
+                    'title': title,
+                    'year': basic_info.get('year', 0),
+                    'image_url': cover_image,
+                    'genre': ", ".join(basic_info.get('genres', [])),
+                    'label': basic_info.get('labels', [{}])[0].get('name', 'Unknown') if basic_info.get('labels') else 'Unknown'
+                }
+                
+                try:
+                    res = self._process_single_album(album_data)
+                    if res and res.get('stored_in_db'):
+                        stats["imported"] += 1
+                        logger.info(f"[{stats['imported']} NUOVO] Indicizzato: {artists} - {title}")
+                    else:
+                        stats["errors"] += 1
+                except Exception as e:
+                    logger.error(f"Errore su {artists} - {title}: {e}")
+                    stats["errors"] += 1
+                
+                # Pausa solo per i download effettivi (rate limit)
+                time.sleep(1.0)
+            
+            if page >= pages_total:
+                break
+            page += 1
+            
+        logger.info(f"Sincronizzazione completata! Nuovi importati: {stats['imported']}, Già presenti: {stats['skipped']}")
+        return stats
     
     def search_similar_albums(self, 
                              image: np.ndarray,
                              n_results: int = 5,
-                             confidence_threshold: float = 0.8) -> List[Dict[str, Any]]:
-        """
-        Search for similar albums using an input image.
-        
-        Args:
-            image: Input album cover image
-            n_results: Number of results to return
-            confidence_threshold: Minimum similarity threshold
-            
-        Returns:
-            List[Dict[str, Any]]: Similar albums with metadata and scores
-        """
-        # Check if essential components are available (more flexible than full initialization)
-        if not hasattr(self, 'database') or not hasattr(self, 'feature_extractor'):
-            logger.error("Pipeline components not available")
-            return []
-        
-        if not hasattr(self.feature_extractor, 'model') or self.feature_extractor.model is None:
-            logger.error("Feature extractor not loaded")
-            return []
-        
+                             confidence_threshold: float = 0.5) -> List[Dict[str, Any]]:
+        # ...
         try:
-            # Preprocess image
             preprocessed = preprocess_for_model(
                 image,
                 target_size=(224, 224),
                 enhance=True
             )
             
-            # Extract features
-            features = self.feature_extractor.extract_features(preprocessed)
+            # is_bgr=True perché il frame dalla webcam OpenCV è in formato BGR
+            features = self.feature_extractor.extract_features(preprocessed, is_bgr=True)
             if features is None:
-                logger.error("Failed to extract features from query image")
                 return []
             
-            # Search database
             results = self.database.search_similar(
                 query_embedding=features,
                 n_results=n_results,
                 confidence_threshold=confidence_threshold
             )
-            
-            logger.info(f"Found {len(results)} similar albums")
             return results
-            
         except Exception as e:
             logger.error(f"Error searching similar albums: {e}")
             return []

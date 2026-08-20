@@ -19,7 +19,7 @@ scikit-image>=0.21.0,<1.0.0
 imageio>=2.31.0,<3.0.0
 
 # GUI Framework
-tkinter-toolkit>=0.1.0; platform_system != "Darwin"  # tkinter comes with Python on macOS
+# tkinter-toolkit>=0.1.0; platform_system != "Darwin"  # tkinter comes with Python on macOS
 
 # Data Handling
 pandas>=2.0.0,<3.0.0

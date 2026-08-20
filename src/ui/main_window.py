@@ -390,7 +390,7 @@ class VinylVisionMainWindow:
             config = load_config()
             
             # Initialize backend components
-            self.camera_manager = CameraManager()
+            self.camera_manager = CameraManager(config.camera.device_id, config.camera.target_fps)
             self.album_detector = AlbumDetector()
             self.feature_extractor = AlbumFeatureExtractor()
             
@@ -441,7 +441,7 @@ class VinylVisionMainWindow:
                 raise Exception("Camera manager not initialized")
             
             camera_source = self.current_settings['camera_source']
-            if not self.camera_manager.initialize_camera(camera_source):
+            if not self.camera_manager.initialize():
                 raise Exception(f"Failed to initialize camera {camera_source}")
             
             self.running = True
@@ -512,7 +512,7 @@ class VinylVisionMainWindow:
         while self.running:
             try:
                 # Capture frame
-                frame = self.camera_manager.capture_frame()
+                frame = self.camera_manager.read_frame()
                 if frame is not None:
                     # Add timestamp
                     frame_data = {

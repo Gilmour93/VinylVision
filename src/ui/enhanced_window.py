@@ -12,16 +12,18 @@ import queue
 import time
 import json
 import os
+import numpy as np
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from loguru import logger
 
 try:
     # Try relative imports first (when used as package)
-    from .widgets import CameraDisplay, ConfidenceMeter, AlbumCoverDisplay, StatusIndicator, PerformanceMonitor
+    from .widgets import CameraDisplay, ConfidenceMeter, AlbumCoverDisplay, StatusIndicator, PerformanceMonitor, AudioSpectrumVisualizer, LyricsDisplay
     from ..core.camera import CameraManager
     from ..core.vision import AlbumDetector
     from ..core.album_pipeline import AlbumDataPipeline
+    from ..core.audio_engine import AudioEngine
     from ..models.efficientnet import AlbumFeatureExtractor
     from ..utils.config import load_config
 except ImportError:
@@ -31,12 +33,13 @@ except ImportError:
     current_dir = Path(__file__).parent
     sys.path.insert(0, str(current_dir.parent))
     
-    from ui.widgets import CameraDisplay, ConfidenceMeter, AlbumCoverDisplay, StatusIndicator, PerformanceMonitor
+    from ui.widgets import CameraDisplay, ConfidenceMeter, AlbumCoverDisplay, StatusIndicator, PerformanceMonitor, AudioSpectrumVisualizer, LyricsDisplay
     from core.camera import CameraManager
     from core.vision import AlbumDetector
     from core.album_pipeline import AlbumDataPipeline
     from models.efficientnet import AlbumFeatureExtractor
     from utils.config import load_config
+    from core.audio_engine import AudioEngine
 
 
 @dataclass
@@ -95,6 +98,12 @@ class EnhancedVinylVisionWindow:
             'overlay_enabled': True,
             'auto_save_results': False
         }
+
+        self.audio_engine = AudioEngine()
+        self.last_audio_scan_time = 0.0
+
+        self.latest_frame: Optional[np.ndarray] = None
+        self.calibrated_corners = self._load_calibration()
         
         self._initialize_components()
         self._setup_ui()
@@ -112,6 +121,19 @@ class EnhancedVinylVisionWindow:
         # Result tracking
         self.current_result: Optional[RecognitionResult] = None
         self.result_history: List[RecognitionResult] = []
+
+    def _load_calibration(self) -> Optional[np.ndarray]:
+        calib_file = "user_data/calibration.json"
+        if os.path.exists(calib_file):
+            try:
+                with open(calib_file, 'r') as f:
+                    data = json.load(f)
+                    pts = data.get('corners')
+                    if pts and len(pts) == 4:
+                        return np.array(pts, dtype="float32")
+            except Exception as e:
+                logger.warning(f"Impossibile caricare calibration.json: {e}")
+        return None
     
     def _setup_ui(self):
         """Setup the enhanced user interface."""
@@ -179,6 +201,12 @@ class EnhancedVinylVisionWindow:
             state="disabled"
         )
         self.stop_button.pack(side=tk.LEFT, padx=(0, 15))
+
+        self.calib_button = ttk.Button(
+            toolbar, text="🎯 Calibra",
+            command=self._toggle_calibration_mode
+        )
+        self.calib_button.pack(side=tk.LEFT, padx=(0, 15))
         
         # Status indicator
         self.status_indicator = StatusIndicator(toolbar)
@@ -203,14 +231,20 @@ class EnhancedVinylVisionWindow:
         camera_frame = ttk.LabelFrame(parent, text="Camera Feed", padding="10")
         camera_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Enhanced camera display
+        # Enhanced camera display con callback interattivo
         self.camera_display = CameraDisplay(
             camera_frame, 
             width=800, 
             height=600,
-            bg="black"
+            bg="black",
+            on_corners_changed=self._on_corners_updated
         )
         self.camera_display.pack(expand=True)
+        
+        # Carica la calibrazione salvata
+        self.calibrated_corners = self._load_calibration()
+        if self.calibrated_corners is not None:
+            self.camera_display.set_corners(self.calibrated_corners)
     
     def _create_control_panel(self, parent):
         """Create camera control panel."""
@@ -287,6 +321,14 @@ class EnhancedVinylVisionWindow:
             row=2, column=1, sticky="w", padx=(5, 0))
         
         metadata_frame.grid_columnconfigure(1, weight=1)
+
+        # Equalizzatore FFT Live
+        self.audio_visualizer = AudioSpectrumVisualizer(results_frame, width=280, height=50)
+        self.audio_visualizer.pack(fill=tk.X, pady=(5, 5))
+
+        # Box Testi Sincronizzati
+        self.lyrics_display = LyricsDisplay(results_frame)
+        self.lyrics_display.pack(fill=tk.X, pady=(5, 0))
         
         # Action buttons
         action_frame = ttk.Frame(results_frame)
@@ -305,25 +347,25 @@ class EnhancedVinylVisionWindow:
         ).pack(side=tk.RIGHT)
     
     def _create_settings_panel(self, parent):
-        """Create settings panel."""
+        """Create settings panel with 30%-80% confidence threshold range."""
         settings_frame = ttk.LabelFrame(parent, text="Settings", padding="10")
         settings_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # Confidence threshold
+        # Confidence threshold (Range 30% - 80%)
         ttk.Label(settings_frame, text="Confidence Threshold:", font=("Arial", 9)).pack(anchor="w")
         
         confidence_frame = ttk.Frame(settings_frame)
         confidence_frame.pack(fill=tk.X, pady=(2, 10))
         
-        self.confidence_var = tk.DoubleVar(value=0.8)
+        self.confidence_var = tk.DoubleVar(value=0.55)
         confidence_scale = ttk.Scale(
-            confidence_frame, from_=0.5, to=1.0,
+            confidence_frame, from_=0.3, to=0.8,
             variable=self.confidence_var,
             command=self._on_confidence_change
         )
         confidence_scale.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        self.confidence_label = ttk.Label(confidence_frame, text="80%", width=5)
+        self.confidence_label = ttk.Label(confidence_frame, text="55%", width=5)
         self.confidence_label.pack(side=tk.RIGHT, padx=(5, 0))
         
         # Camera selection
@@ -375,7 +417,7 @@ class EnhancedVinylVisionWindow:
             config = load_config()
             
             # Initialize backend components
-            self.camera_manager = CameraManager()
+            self.camera_manager = CameraManager(config.camera.device_id, config.camera.target_fps)
             self.album_detector = AlbumDetector()
             self.feature_extractor = AlbumFeatureExtractor()
             
@@ -415,6 +457,8 @@ class EnhancedVinylVisionWindow:
         
         try:
             self.status_indicator.set_state('connecting')
+
+            self.audio_engine.start()
             
             # Initialize camera
             camera_source = self.camera_var.get()
@@ -469,6 +513,8 @@ class EnhancedVinylVisionWindow:
         """Stop video capture."""
         self.running = False
         self.paused = False
+
+        self.audio_engine.stop()
         
         # Wait for threads
         if self.video_thread and self.video_thread.is_alive():
@@ -498,8 +544,9 @@ class EnhancedVinylVisionWindow:
         
         logger.info("Enhanced capture stopped")
     
+    """
     def _video_capture_loop(self):
-        """Enhanced video capture loop."""
+        # Enhanced video capture loop.
         frame_time = 1.0 / self.fps_var.get()
         
         while self.running:
@@ -526,9 +573,41 @@ class EnhancedVinylVisionWindow:
                     logger.error(f"Video capture error: {e}")
             
             time.sleep(frame_time)
+    """
+
+    def _video_capture_loop(self):
+        """Loop di acquisizione camera a pieno framerate."""
+        last_detect_time = 0.0
+        
+        while self.running:
+            if not self.paused:
+                try:
+                    ret, frame = self.camera_manager.read_frame()
+                    if ret and frame is not None:
+                        # 1. Salva sempre l'ultimo frame per il rendering della UI
+                        self.latest_frame = frame
+                        
+                        # 2. Invia alla coda AI solo se la detection è attiva e al framerate impostato
+                        current_time = time.time()
+                        detect_interval = 1.0 / max(self.fps_var.get(), 0.5)
+                        
+                        if self.detection_var.get() and (current_time - last_detect_time >= detect_interval):
+                            last_detect_time = current_time
+                            if self.frame_queue.full():
+                                try:
+                                    self.frame_queue.get_nowait()
+                                except queue.Empty:
+                                    pass
+                            self.frame_queue.put_nowait(frame.copy())
+                            
+                except Exception as e:
+                    logger.error(f"Video capture error: {e}")
+            
+            time.sleep(0.01)  # Cede il ciclo per non saturare la CPU
     
+    """
     def _processing_loop(self):
-        """Enhanced processing loop."""
+        # Enhanced processing loop.
         while self.running:
             if not self.paused and self.detection_var.get():
                 try:
@@ -567,120 +646,188 @@ class EnhancedVinylVisionWindow:
                     logger.error(f"Processing error: {e}")
             else:
                 time.sleep(0.1)
+    """
+
+    def _processing_loop(self):
+        """Loop di inferenza AI in background."""
+        while self.running:
+            if not self.paused and self.detection_var.get():
+                try:
+                    frame = self.frame_queue.get(timeout=0.5)
+                    start_time = time.time()
+                    
+                    result = self._process_frame(frame)
+                    
+                    processing_time = (time.time() - start_time) * 1000
+                    self.performance_stats['frames_processed'] += 1
+                    self.performance_stats['total_processing_time'] += processing_time
+                    
+                    if self.performance_monitor:
+                        fps = self.performance_stats['frames_processed'] / max(1, time.time() - (self.performance_stats['start_time'] or time.time()))
+                        self.performance_monitor.update_metrics(
+                            fps=fps,
+                            processing_time=processing_time,
+                            queue_size=self.frame_queue.qsize()
+                        )
+                    
+                    if result:
+                        result.processing_time = processing_time
+                        if self.result_queue.full():
+                            try:
+                                self.result_queue.get_nowait()
+                            except queue.Empty:
+                                pass
+                        self.result_queue.put_nowait(result)
+                        
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    logger.error(f"Processing error: {e}")
+            else:
+                time.sleep(0.1)
     
     def _process_frame(self, frame) -> Optional[RecognitionResult]:
-        """Enhanced frame processing with better error handling."""
+        """Estrae l'area del vinile, calcola la likelihood live e valida la soglia."""
         try:
-            # Detect albums
-            album_bboxes = self.album_detector.detect_albums(frame)
-            if not album_bboxes:
-                return None
+            import os
+            from utils.image_processing import four_point_transform
             
-            # Get largest detection (first one returned)
-            bbox = album_bboxes[0]  # (x, y, w, h)
-            album_roi = self.album_detector.extract_roi(frame, bbox)
+            album_roi = None
             
-            if album_roi is None:
-                return None
+            # 1. Applica la trasformazione prospettica sui 4 punti calibrati
+            if hasattr(self, 'calibrated_corners') and self.calibrated_corners is not None:
+                album_roi = four_point_transform(frame, self.calibrated_corners, target_dim=500)
+            else:
+                h, w = frame.shape[:2]
+                crop_size = int(min(h, w) * 0.85)
+                start_x = (w - crop_size) // 2
+                start_y = (h - crop_size) // 2
+                album_roi = frame[start_y:start_y+crop_size, start_x:start_x+crop_size]
             
-            # Search database using album image
-            if self.album_pipeline:
-                search_results = self.album_pipeline.search_similar_albums(album_roi)
+            if self.album_pipeline and album_roi is not None and album_roi.size > 0:
+                current_threshold = float(self.confidence_var.get())
+                
+                # Cerca con threshold 0.0 per ottenere sempre il miglior candidato e la sua Likelihood reale
+                search_results = self.album_pipeline.search_similar_albums(
+                    album_roi, 
+                    n_results=1, 
+                    confidence_threshold=0.0
+                )
                 
                 if search_results:
                     best_match = search_results[0]
-                    confidence = best_match.get('confidence', 0)
+                    confidence = best_match.get('similarity', best_match.get('confidence', 0.0))
+                    metadata = best_match.get('metadata', {})
                     
-                    if confidence >= self.confidence_var.get():
-                        metadata = best_match.get('metadata', {})
+                    # Aggiorna sempre la barra della Likelihood in tempo reale nella UI
+                    if self.confidence_meter:
+                        self.root.after(0, lambda c=confidence: self.confidence_meter.update_confidence(c))
+                    
+                    # Se supera la soglia minima impostata dallo slider, popola i metadati
+                    if confidence >= current_threshold:
+                        local_cover = metadata.get('local_cover_path')
+                        if not local_cover or not os.path.exists(str(local_cover)):
+                            expected_path = f"data/covers/{metadata.get('id')}.jpg"
+                            if os.path.exists(expected_path):
+                                local_cover = expected_path
                         
                         return RecognitionResult(
                             artist=metadata.get('artist', 'Unknown'),
                             title=metadata.get('title', 'Unknown'),
                             year=str(metadata.get('year', 'Unknown')),
                             confidence=confidence,
+                            cover_url=local_cover,
                             genre=metadata.get('genre'),
                             label=metadata.get('label'),
-                            discogs_id=metadata.get('discogs_id')
+                            discogs_id=str(metadata.get('id', ''))
                         )
             
             return None
-            
         except Exception as e:
             logger.error(f"Enhanced processing error: {e}")
             return None
-    
+
+    def _update_result_display(self, result: RecognitionResult):
+        """Update result display widgets with album artwork."""
+        import os
+        
+        # Se è lo stesso album già mostrato, aggiorna solo la confidenza
+        is_new_album = (self.current_result is None or self.current_result.discogs_id != result.discogs_id)
+        
+        self.current_result = result
+        self.result_history.append(result)
+        
+        if len(self.result_history) > 50:
+            self.result_history = self.result_history[-50:]
+        
+        # Aggiorna i metadati
+        self.artist_var.set(result.artist)
+        self.title_var.set(result.title)
+        self.year_var.set(result.year)
+        
+        # Aggiorna la barra di confidenza
+        if self.confidence_meter:
+            self.confidence_meter.update_confidence(result.confidence)
+        
+        # --- NOVITÀ: Caricamento istantaneo dell'immagine dal disco locale ---
+        if is_new_album and result.cover_url and self.album_cover:
+            # result.cover_url contiene il path (es: "data/covers/7493149.jpg")
+            if os.path.exists(result.cover_url):
+                try:
+                    with open(result.cover_url, "rb") as f:
+                        image_data = f.read()
+                    self.album_cover.update_cover(image_data=image_data)
+                except Exception as e:
+                    logger.warning(f"Errore lettura cover locale: {e}")
+        # ---------------------------------------------------------------------
+        
+        logger.info(f"Result updated: {result.artist} - {result.title} ({result.confidence:.1%})")
+
     def _update_ui(self):
-        """Enhanced UI update loop."""
+        """Aggiorna il feed della camera, i risultati di riconoscimento, lo spettro FFT e i testi."""
         if not self.running:
             return
-        
-        try:
-            # Update camera display
-            if not self.frame_queue.empty():
-                latest_frame = None
-                # Get the most recent frame
-                while not self.frame_queue.empty():
-                    try:
-                        latest_frame = self.frame_queue.get_nowait()
-                    except queue.Empty:
-                        break
-                
-                if latest_frame:
-                    # Detect albums for overlay
-                    detections = []
-                    if self.overlay_var.get() and self.album_detector:
-                        try:
-                            album_bboxes = self.album_detector.detect_albums(latest_frame['frame'])
-                            # Convert tuples to format expected by camera display
-                            for bbox in album_bboxes:
-                                x, y, w, h = bbox
-                                detections.append({
-                                    'bbox': (x, y, x + w, y + h),  # Convert to (x1, y1, x2, y2)
-                                    'confidence': 0.8,  # Default confidence for display
-                                    'original_width': latest_frame['frame'].shape[1],
-                                    'original_height': latest_frame['frame'].shape[0]
-                                })
-                        except:
-                            pass
-                    
-                    self.camera_display.update_frame(latest_frame['frame'], detections)
             
-            # Update results
+        try:
+            # 1. Aggiorna il display della telecamera con il frame e i punti calibrati
+            if hasattr(self, 'latest_frame') and self.latest_frame is not None and self.camera_display is not None:
+                self.camera_display.update_frame(self.latest_frame, detected_corners=self.calibrated_corners)
+            
+            # 2. Aggiorna i metadati del disco se il modello ha trovato un match
             try:
                 result = self.result_queue.get_nowait()
                 self._update_result_display(result)
             except queue.Empty:
                 pass
-        
+            
+            # 3. Aggiorna lo spettro audio FFT e i testi sincronizzati
+            if hasattr(self, 'audio_engine') and self.audio_engine.running:
+                # Render dell'equalizzatore a barre FFT
+                if hasattr(self, 'audio_visualizer') and self.audio_visualizer is not None:
+                    fft_vals = self.audio_engine.get_fft_spectrum()
+                    self.audio_visualizer.render_spectrum(fft_vals)
+                
+                # Aggiorna la riga di testo sincronizzata corrente
+                if hasattr(self, 'lyrics_display') and self.lyrics_display is not None:
+                    prev_l, curr_l, next_l = self.audio_engine.get_active_lyric_line()
+                    track_title = self.audio_engine.current_track or ""
+                    self.lyrics_display.update_lyrics(track_title, prev_l, curr_l, next_l)
+
+                # Polling Shazam in background ogni 15 secondi
+                now = time.time()
+                if not hasattr(self, 'last_audio_scan_time'):
+                    self.last_audio_scan_time = 0.0
+                    
+                if now - self.last_audio_scan_time >= 10.0:
+                    self.last_audio_scan_time = now
+                    self.audio_engine.trigger_background_identify()
+                
         except Exception as e:
             logger.error(f"UI update error: {e}")
         
-        # Schedule next update
+        # Pianifica il prossimo frame UI a ~30 FPS
         if self.running:
-            self.root.after(33, self._update_ui)  # ~30 FPS UI updates
-    
-    def _update_result_display(self, result: RecognitionResult):
-        """Update result display widgets."""
-        self.current_result = result
-        self.result_history.append(result)
-        
-        # Keep only recent results
-        if len(self.result_history) > 50:
-            self.result_history = self.result_history[-50:]
-        
-        # Update metadata
-        self.artist_var.set(result.artist)
-        self.title_var.set(result.title)
-        self.year_var.set(result.year)
-        
-        # Update confidence meter
-        self.confidence_meter.update_confidence(result.confidence)
-        
-        # TODO: Update album cover when cover_url is available
-        # self.album_cover.update_cover(image_data)
-        
-        logger.info(f"Result updated: {result.artist} - {result.title} ({result.confidence:.1%})")
+            self.root.after(30, self._update_ui)
     
     # Settings event handlers
     def _toggle_detection(self):
@@ -726,6 +873,8 @@ class EnhancedVinylVisionWindow:
         """Show help dialog."""
         help_text = """VinylVision - Quick Help
 
+    
+
 Controls:
 • F11: Toggle fullscreen
 • Esc: Exit fullscreen
@@ -739,6 +888,54 @@ Tips:
 For detailed documentation, visit the project repository."""
         
         messagebox.showinfo("Help", help_text)
+
+    def _toggle_calibration_mode(self):
+        """Attiva o disattiva la modalità di calibrazione dei punti a runtime."""
+        if not self.camera_display:
+            return
+        current_state = self.camera_display.calibration_mode
+        new_state = not current_state
+        self.camera_display.set_calibration_mode(new_state)
+        
+        if new_state:
+            self.calib_button.config(text="✔ Salva Calibrazione")
+            self.status_var.set("Modalità calibrazione: trascina i 4 punti sugli angoli del supporto al muro")
+        else:
+            self.calib_button.config(text="🎯 Calibra")
+            self._save_calibration()
+            self.status_var.set("Calibrazione salvata con successo")
+
+    def _on_corners_updated(self, corners: np.ndarray):
+        """Aggiorna le coordinate usate dall'AI in tempo reale durante il trascinamento."""
+        self.calibrated_corners = corners
+
+    def _save_calibration(self):
+        """Salva i punti attuali su file JSON."""
+        if self.calibrated_corners is None or len(self.calibrated_corners) != 4:
+            return
+        try:
+            calib_file = "user_data/calibration.json"
+            os.makedirs(os.path.dirname(calib_file), exist_ok=True)
+            corners_list = self.calibrated_corners.tolist()
+            with open(calib_file, 'w') as f:
+                json.dump({'corners': corners_list}, f, indent=2)
+            logger.info(f"Calibrazione salvata in {calib_file}")
+        except Exception as e:
+            logger.error(f"Errore salvataggio calibrazione: {e}")
+
+    def _load_calibration(self) -> Optional[np.ndarray]:
+        """Carica le coordinate salvate."""
+        calib_file = "user_data/calibration.json"
+        if os.path.exists(calib_file):
+            try:
+                with open(calib_file, 'r') as f:
+                    data = json.load(f)
+                    pts = data.get('corners')
+                    if pts and len(pts) == 4:
+                        return np.array(pts, dtype="float32")
+            except Exception as e:
+                logger.warning(f"Impossibile caricare calibration.json: {e}")
+        return None
     
     def _save_current_result(self):
         """Save current recognition result."""
