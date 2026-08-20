@@ -52,6 +52,10 @@ VinylVision transforms your record listening experience into an interactive, sma
 - Python 3.8 to 3.11
 - USB Webcam / Camera module
 - Microphone / Audio input device
+- FFmpeg installed and available in system PATH (required for audio conversion)
+  - Windows: `winget install Gyan.FFmpeg` or `choco install ffmpeg`
+  - Linux / Raspberry Pi: `sudo apt update && sudo apt install -y ffmpeg`
+  - macOS: `brew install ffmpeg`
 - Discogs Developer Account (Consumer Key & Secret)
 
 ### 1. Clone & Setup Environment
@@ -98,14 +102,23 @@ DISCOGS_SECRET = "YOUR_DISCOGS_CONSUMER_SECRET"
    4. Click Dashboard to return to the live Now Playing view.
 
 3. **Collection Sync & Album Management**
+   * Sync your personal Discogs record collection into the local database:
+      ```bash
+      # Sync entire collection from Discogs
+      python src/sync_collection.py <YOUR_DISCOGS_USERNAME>
 
-   ```
-   # Sync entire collection from Discogs
-   python src/sync_collection.py
+      # Sync only the first N albums (e.g., first 10)
+      python src/sync_collection.py <YOUR_DISCOGS_USERNAME> <ALBUM_LIMIT>
 
-   # Add a single album manually
-   python src/add_album.py --id <DISCOGS_RELEASE_ID>
-   ```
+      # Add a single album manually
+      python src/add_album.py --id <DISCOGS_RELEASE_ID>
+      ```
+   * Add a single album manually: If you only want to index a specific record without syncing the whole collection, use src/add_album.py with its Discogs Release ID (found in the album's Discogs web URL, e.g., discogs.com/release/249504):
+      ```bash
+      # Ingest a single release via Discogs ID
+      python src/add_album.py --id <DISCOGS_RELEASE_ID>
+      ```
+   **Note**: The visual cover recognition works exclusively with albums indexed in your local database. Make sure to sync your collection or add individual releases before scanning!
 
 ### Tips for Best Results
 - Ensure good lighting conditions
