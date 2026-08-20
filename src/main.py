@@ -14,8 +14,6 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
 try:
-    from ui.enhanced_window import EnhancedVinylVisionWindow
-    from ui.main_window import VinylVisionMainWindow
     from ui.kiosk_window import KioskVinylVisionWindow
 except ImportError as e:
     print(f"Failed to import UI components: {e}")
@@ -30,7 +28,7 @@ def main():
     logger.info("Starting VinylVision application")
     
     try:
-        # Create and run the enhanced application
+        # Create and run the kiosk application
         print("Starting VinylVision with Kiosk UI...")
         app = KioskVinylVisionWindow()
         app.run()

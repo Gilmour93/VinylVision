@@ -1,4 +1,12 @@
-from ui.enhanced_window import EnhancedVinylVisionWindow
-from ui.kiosk_window import KioskVinylVisionWindow
+"""
+UI module for VinylVision.
+"""
 
-__all__ = ['EnhancedVinylVisionWindow', 'KioskVinylVisionWindow']
+from .kiosk_window import KioskVinylVisionWindow
+from .widgets import LyricsDisplay, AudioSpectrumVisualizer
+
+__all__ = [
+    "KioskVinylVisionWindow",
+    "LyricsDisplay",
+    "AudioSpectrumVisualizer"
+]
