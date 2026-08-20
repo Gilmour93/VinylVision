@@ -5,7 +5,7 @@ from core.album_pipeline import AlbumDataPipeline
 def main():
     if len(sys.argv) < 2:
         print("\n[USAGE]: python .\\src\\sync_collection.py <YOUR_DISCOGS_USERNAME> [ALBUM_LIMIT]")
-        print("Example: python .\\src\\sync_collection.py my_username")
+        print("Example (all collection): python .\\src\\sync_collection.py my_username")
         print("Example (first 10 albums): python .\\src\\sync_collection.py my_username 10\n")
         return
 
