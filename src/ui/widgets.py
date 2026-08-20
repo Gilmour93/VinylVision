@@ -446,31 +446,31 @@ class LyricsDisplay(ttk.Frame):
 
         # 7 Lines with gradual fading toward borders
         # Line -3 (faded)
-        self.lbl_p3 = tk.Label(self.lines_container, text="", font=("Helvetica", 9), fg="#303038", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
+        self.lbl_p3 = tk.Label(self.lines_container, text="", font=("Helvetica", 9), fg="#303038", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
         self.lbl_p3.pack(fill=tk.BOTH, expand=True, pady=1)
 
         # Line -2 (faded)
-        self.lbl_p2 = tk.Label(self.lines_container, text="", font=("Helvetica", 11), fg="#484855", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
+        self.lbl_p2 = tk.Label(self.lines_container, text="", font=("Helvetica", 11), fg="#484855", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
         self.lbl_p2.pack(fill=tk.BOTH, expand=True, pady=1)
 
         # Line -1 (near active)
-        self.lbl_p1 = tk.Label(self.lines_container, text="", font=("Helvetica", 13), fg="#757585", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
+        self.lbl_p1 = tk.Label(self.lines_container, text="", font=("Helvetica", 13), fg="#757585", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
         self.lbl_p1.pack(fill=tk.BOTH, expand=True, pady=2)
 
         # Line 0 (ACTIVE / NOW SINGING)
-        self.lbl_curr = tk.Label(self.lines_container, text="Waiting for track...", font=("Helvetica", 16, "bold"), fg="#FFFFFF", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
+        self.lbl_curr = tk.Label(self.lines_container, text="Waiting for track...", font=("Helvetica", 16, "bold"), fg="#FFFFFF", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
         self.lbl_curr.pack(fill=tk.BOTH, expand=True, pady=3)
 
         # Line +1 (next line)
-        self.lbl_n1 = tk.Label(self.lines_container, text="", font=("Helvetica", 13), fg="#757585", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
+        self.lbl_n1 = tk.Label(self.lines_container, text="", font=("Helvetica", 13), fg="#757585", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
         self.lbl_n1.pack(fill=tk.BOTH, expand=True, pady=2)
 
         # Line +2 (upcoming)
-        self.lbl_n2 = tk.Label(self.lines_container, text="", font=("Helvetica", 11), fg="#484855", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
+        self.lbl_n2 = tk.Label(self.lines_container, text="", font=("Helvetica", 11), fg="#484855", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
         self.lbl_n2.pack(fill=tk.BOTH, expand=True, pady=1)
 
         # Line +3 (faded upcoming)
-        self.lbl_n3 = tk.Label(self.lines_container, text="", font=("Helvetica", 9), fg="#303038", bg="#1A1A1E", anchor="w", wraplength=440, justify="left")
+        self.lbl_n3 = tk.Label(self.lines_container, text="", font=("Helvetica", 9), fg="#303038", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
         self.lbl_n3.pack(fill=tk.BOTH, expand=True, pady=1)
 
         # 3. Spotify Progress Bar & Timers

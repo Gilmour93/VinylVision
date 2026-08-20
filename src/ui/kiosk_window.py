@@ -87,9 +87,9 @@ class KioskVinylVisionWindow:
         # 3. Main Tkinter Window
         self.root = tk.Tk()
         self.root.title("VinylVision - Now Playing")
-        self.root.geometry("1024x600")
-        self.root.minsize(800, 480)
+        self.root.geometry("1024x576")
         self.root.configure(bg="#121214")
+        self.root.resizable(False, False)
 
         # 4. State Variables
         self.running = False
@@ -161,7 +161,7 @@ class KioskVinylVisionWindow:
     def _build_now_playing_view(self):
         # Top Bar
         top_bar = ttk.Frame(self.now_playing_frame, style="Dark.TFrame")
-        top_bar.pack(fill=tk.X, padx=20, pady=(15, 5))
+        top_bar.pack(fill=tk.X, padx=20, pady=(15, 8))
         
         logo_label = ttk.Label(top_bar, text="VINYLVISION", font=("Arial", 12, "bold"), foreground="#00FF66", background="#121214")
         logo_label.pack(side=tk.LEFT)
@@ -170,77 +170,103 @@ class KioskVinylVisionWindow:
         gear_btn.pack(side=tk.RIGHT)
 
         main_content = ttk.Frame(self.now_playing_frame, style="Dark.TFrame")
-        main_content.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        main_content.columnconfigure(0, weight=5)  # Vinyl & Discogs Card
-        main_content.columnconfigure(1, weight=5)  # Lyrics & Player Card
+        main_content.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 20))
+        
+        # Proporzione 38% (Colonna 0: Vinile) e 62% (Colonna 1: Testi & Player)
+        main_content.columnconfigure(0, weight=38)
+        main_content.columnconfigure(1, weight=62)
+        main_content.rowconfigure(0, weight=1)
 
         # ====================================================
-        # FRAME 1: VINYL DETAILS & DISCOGS MARKETPLACE
+        # FRAME 1: VINYL DETAILS, PRESSING & DISCOGS MARKETPLACE
         # ====================================================
-        vinyl_card = ttk.Frame(main_content, style="Card.TFrame", padding=15)
+        vinyl_card = ttk.Frame(main_content, style="Card.TFrame", padding=14)
         vinyl_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
-        # Album Artwork
-        self.cover_canvas = tk.Canvas(vinyl_card, bg="#111115", width=220, height=220, highlightthickness=0)
-        self.cover_canvas.pack(pady=(0, 10))
+        # Copertina Album
+        self.cover_canvas = tk.Canvas(vinyl_card, bg="#111115", width=210, height=210, highlightthickness=0)
+        self.cover_canvas.pack(pady=(0, 8))
         self._set_default_cover_image()
 
-        # Main Information
-        self.album_title_label = ttk.Label(vinyl_card, text="Waiting for vinyl...", font=("Helvetica", 15, "bold"), foreground="#FFFFFF", background="#1A1A1E", wraplength=380)
-        self.album_title_label.pack(anchor="w", pady=(0, 2))
+        # Informazioni Principali (Titolo, Artista, Metadati)
+        self.album_title_label = ttk.Label(vinyl_card, text="Waiting for vinyl...", font=("Helvetica", 14, "bold"), foreground="#FFFFFF", background="#1A1A1E", wraplength=340)
+        self.album_title_label.pack(anchor="w", pady=(0, 1))
 
-        self.album_artist_label = ttk.Label(vinyl_card, text="Place a record on the stand", font=("Helvetica", 12), foreground="#00A8FF", background="#1A1A1E", wraplength=380)
-        self.album_artist_label.pack(anchor="w", pady=(0, 4))
+        self.album_artist_label = ttk.Label(vinyl_card, text="Place a record on the stand", font=("Helvetica", 11), foreground="#00A8FF", background="#1A1A1E", wraplength=340)
+        self.album_artist_label.pack(anchor="w", pady=(0, 2))
 
-        self.album_meta_label = ttk.Label(vinyl_card, text="Year: -- | Label: -- | Genre: --", font=("Helvetica", 9), foreground="#8E8E98", background="#1A1A1E")
-        self.album_meta_label.pack(anchor="w", pady=(0, 12))
+        self.album_meta_label = ttk.Label(vinyl_card, text="Year: -- | Label: -- | Genre: --", font=("Helvetica", 8), foreground="#8E8E98", background="#1A1A1E", wraplength=340)
+        self.album_meta_label.pack(anchor="w", pady=(0, 8))
 
-        # Discogs Marketplace Box
-        discogs_box = tk.Frame(vinyl_card, bg="#141417", highlightthickness=1, highlightbackground="#2A2A32", padx=10, pady=8)
-        discogs_box.pack(fill=tk.X, anchor="s")
+        # Riquadro Specifiche Stampa (Format & Pressing)
+        pressing_box = tk.Frame(vinyl_card, bg="#16161A", padx=8, pady=6)
+        pressing_box.pack(fill=tk.X, pady=(0, 8))
 
+        tk.Label(pressing_box, text="PRESSING & FORMAT", font=("Helvetica", 7, "bold"), fg="#707080", bg="#16161A").pack(anchor="w", pady=(0, 2))
+        self.format_label = tk.Label(pressing_box, text="Format: Vinyl, LP, Album", font=("Helvetica", 8), fg="#D0D0D8", bg="#16161A", anchor="w")
+        self.format_label.pack(fill=tk.X)
+        self.catno_label = tk.Label(pressing_box, text="Cat#: -- | Country: --", font=("Helvetica", 8), fg="#A0A0A8", bg="#16161A", anchor="w")
+        self.catno_label.pack(fill=tk.X)
+
+        # Box Marketplace & Community Discogs (Ancorato in basso)
+        discogs_box = tk.Frame(vinyl_card, bg="#141417", highlightthickness=1, highlightbackground="#2A2A32", padx=8, pady=6)
+        discogs_box.pack(fill=tk.X, side=tk.BOTTOM)
+
+        # Riga 1: Header Marketplace & Copie in vendita
         header_mkt = tk.Frame(discogs_box, bg="#141417")
-        header_mkt.pack(fill=tk.X, pady=(0, 4))
+        header_mkt.pack(fill=tk.X, pady=(0, 2))
         tk.Label(header_mkt, text="DISCOGS MARKETPLACE", font=("Helvetica", 8, "bold"), fg="#FF8800", bg="#141417").pack(side=tk.LEFT)
         self.discogs_for_sale_label = tk.Label(header_mkt, text="For sale: --", font=("Helvetica", 8), fg="#A0A0A8", bg="#141417")
         self.discogs_for_sale_label.pack(side=tk.RIGHT)
 
+        # Riga 2: Community Rating e Indicatori Collezionismo (Have / Want)
+        community_row = tk.Frame(discogs_box, bg="#141417")
+        community_row.pack(fill=tk.X, pady=(0, 4))
+        self.rating_label = tk.Label(community_row, text="★ --/5.0", font=("Helvetica", 8, "bold"), fg="#FFCC00", bg="#141417")
+        self.rating_label.pack(side=tk.LEFT)
+        self.have_want_label = tk.Label(community_row, text="Have: -- • Want: --", font=("Helvetica", 8), fg="#888894", bg="#141417")
+        self.have_want_label.pack(side=tk.RIGHT)
+
+        # Separatore visivo sottile
+        tk.Frame(discogs_box, bg="#2A2A32", height=1).pack(fill=tk.X, pady=(1, 4))
+
+        # Riga 3: Fasce di Prezzo Min / Med / Max
         stats_row = tk.Frame(discogs_box, bg="#141417")
         stats_row.pack(fill=tk.X)
 
-        self.price_low_label = tk.Label(stats_row, text="Min: --", font=("Helvetica", 10, "bold"), fg="#00FF66", bg="#141417")
+        self.price_low_label = tk.Label(stats_row, text="Min: --", font=("Helvetica", 9, "bold"), fg="#00FF66", bg="#141417")
         self.price_low_label.pack(side=tk.LEFT, expand=True)
 
-        self.price_med_label = tk.Label(stats_row, text="Med: --", font=("Helvetica", 10, "bold"), fg="#FFFFFF", bg="#141417")
+        self.price_med_label = tk.Label(stats_row, text="Med: --", font=("Helvetica", 9, "bold"), fg="#FFFFFF", bg="#141417")
         self.price_med_label.pack(side=tk.LEFT, expand=True)
 
-        self.price_high_label = tk.Label(stats_row, text="Max: --", font=("Helvetica", 10, "bold"), fg="#FF5555", bg="#141417")
+        self.price_high_label = tk.Label(stats_row, text="Max: --", font=("Helvetica", 9, "bold"), fg="#FF5555", bg="#141417")
         self.price_high_label.pack(side=tk.LEFT, expand=True)
 
         # ====================================================
-        # FRAME 2: LYRICS & SPOTIFY PLAYER
+        # FRAME 2: LYRICS & SPOTIFY PLAYER (62%)
         # ====================================================
-        lyrics_card = ttk.Frame(main_content, style="Card.TFrame", padding=10)
+        lyrics_card = ttk.Frame(main_content, style="Card.TFrame", padding=15)
         lyrics_card.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
         self.lyrics_display = LyricsDisplay(lyrics_card)
-        self.lyrics_display.pack(fill=tk.BOTH, expand=True)
+        self.lyrics_display.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
-        self.audio_visualizer = AudioSpectrumVisualizer(lyrics_card, width=400, height=45)
-        self.audio_visualizer.pack(fill=tk.X, pady=(4, 0))
+        self.audio_visualizer = AudioSpectrumVisualizer(lyrics_card, width=540, height=45)
+        self.audio_visualizer.pack(fill=tk.X, side=tk.BOTTOM)
 
     def _set_default_cover_image(self):
         self.cover_canvas.delete("all")
-        self.cover_canvas.create_rectangle(5, 5, 215, 215, outline="#2A2A32", width=1, dash=(4, 4))
-        self.cover_canvas.create_text(110, 95, text="💿", font=("Arial", 36), fill="#3E3E48")
-        self.cover_canvas.create_text(110, 145, text="No vinyl detected", font=("Helvetica", 9), fill="#666677")
+        self.cover_canvas.create_rectangle(5, 5, 205, 205, outline="#2A2A32", width=1, dash=(4, 4))
+        self.cover_canvas.create_text(105, 90, text="💿", font=("Arial", 36), fill="#3E3E48")
+        self.cover_canvas.create_text(105, 135, text="No vinyl detected", font=("Helvetica", 9), fill="#666677")
 
     # ==========================================
     # 2. VIEW: SETTINGS & CALIBRATION
     # ==========================================
     def _build_settings_view(self):
         top_bar = ttk.Frame(self.settings_frame, style="Dark.TFrame")
-        top_bar.pack(fill=tk.X, padx=20, pady=(15, 10))
+        top_bar.pack(fill=tk.X, padx=20, pady=(15, 8))
 
         title = ttk.Label(top_bar, text="Camera Calibration & Settings", font=("Arial", 14, "bold"), foreground="#FFFFFF", background="#121214")
         title.pack(side=tk.LEFT)
@@ -249,9 +275,10 @@ class KioskVinylVisionWindow:
         back_btn.pack(side=tk.RIGHT)
 
         content = ttk.Frame(self.settings_frame, style="Dark.TFrame")
-        content.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        content.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 20))
         content.columnconfigure(0, weight=6)
         content.columnconfigure(1, weight=4)
+        content.rowconfigure(0, weight=1)
 
         # Left Column: Native Camera Canvas
         cam_frame = ttk.Frame(content, style="Card.TFrame", padding=10)
@@ -267,12 +294,11 @@ class KioskVinylVisionWindow:
         )
         self.native_cam_canvas.pack(expand=True)
         
-        # Mouse Bindings for calibration points
         self.native_cam_canvas.bind("<Button-1>", self._on_canvas_press)
         self.native_cam_canvas.bind("<B1-Motion>", self._on_canvas_drag)
         self.native_cam_canvas.bind("<ButtonRelease-1>", self._on_canvas_release)
 
-        # Right Column: Controls & AI Crop Preview
+        # Right Column: Controls
         ctrl_frame = ttk.Frame(content, style="Card.TFrame", padding=12)
         ctrl_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
@@ -333,9 +359,6 @@ class KioskVinylVisionWindow:
         reset_calib_btn = ttk.Button(calib_btn_row, text="Reset", command=self._reset_calibration)
         reset_calib_btn.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(2, 0))
 
-        self.calib_status_label = ttk.Label(ctrl_frame, text="Status: Locked", style="Detail.TLabel")
-        self.calib_status_label.pack(anchor="w", pady=(4, 0))
-
     def _on_threshold_change(self, val):
         v = float(val)
         self.thresh_val_label.config(text=f"{v:.2f}")
@@ -382,10 +405,8 @@ class KioskVinylVisionWindow:
         self.is_calibrating = not self.is_calibrating
         if self.is_calibrating:
             self.calib_toggle_btn.config(text="💾 Save Corners")
-            self.calib_status_label.config(text="Status: Drag corner pins")
         else:
             self.calib_toggle_btn.config(text="🎯 Edit Corners")
-            self.calib_status_label.config(text="Status: Locked and saved")
             self._save_calibration()
 
     def _on_canvas_press(self, event):
@@ -705,7 +726,7 @@ class KioskVinylVisionWindow:
             return
         self.last_matched_id = disc_id
 
-        # 1. Main Metadata
+        # 1. Main Metadata Info
         title = match.get('title') or match.get('album') or 'Unknown Title'
         artist = match.get('artist') or match.get('artists') or 'Unknown Artist'
         year = match.get('year') or match.get('released') or 'N/A'
@@ -714,12 +735,23 @@ class KioskVinylVisionWindow:
         if isinstance(genre, list):
             genre = ", ".join(str(g) for g in genre[:2])
 
+        # Pressing & Catalog info se presenti nel match
+        catno = match.get('catno') or match.get('catalog_number') or '--'
+        country = match.get('country') or '--'
+        formats = match.get('formats') or match.get('format') or 'Vinyl, LP, Album'
+        if isinstance(formats, list):
+            formats = ", ".join(str(f) for f in formats[:2])
+
         self.album_title_label.config(text=title)
         self.album_artist_label.config(text=artist)
         self.album_meta_label.config(text=f"Year: {year} | Label: {label} | Genre: {genre}")
+        self.format_label.config(text=f"Format: {formats}")
+        self.catno_label.config(text=f"Cat#: {catno} | Country: {country}")
 
-        # 2. Reset / Request Marketplace Info
-        self.discogs_for_sale_label.config(text="For sale: Fetching rates...")
+        # 2. Reset / Fetch Marketplace Info
+        self.discogs_for_sale_label.config(text="For sale: Fetching...")
+        self.rating_label.config(text="★ --/5.0")
+        self.have_want_label.config(text="Have: -- • Want: --")
         self.price_low_label.config(text="Min: --")
         self.price_med_label.config(text="Med: --")
         self.price_high_label.config(text="Max: --")
@@ -727,7 +759,7 @@ class KioskVinylVisionWindow:
         if disc_id:
             threading.Thread(target=self._fetch_marketplace_data_async, args=(disc_id,), daemon=True).start()
 
-        # 3. Load Artwork Cover
+        # 3. Load Album Cover Artwork
         cover_candidates = []
         for k in ['cover_image_path', 'cover_path', 'image_path', 'local_image_path', 'cover_file', 'cover']:
             val = match.get(k)
@@ -747,10 +779,10 @@ class KioskVinylVisionWindow:
             if path and os.path.isfile(path):
                 try:
                     img = Image.open(path)
-                    img = img.resize((210, 210), Image.Resampling.LANCZOS)
+                    img = img.resize((200, 200), Image.Resampling.LANCZOS)
                     self._cover_img_ref = ImageTk.PhotoImage(img)
                     self.cover_canvas.delete("all")
-                    self.cover_canvas.create_image(110, 110, anchor=tk.CENTER, image=self._cover_img_ref)
+                    self.cover_canvas.create_image(105, 105, anchor=tk.CENTER, image=self._cover_img_ref)
                     loaded = True
                     break
                 except Exception:
@@ -758,15 +790,15 @@ class KioskVinylVisionWindow:
 
         if not loaded:
             self.cover_canvas.delete("all")
-            self.cover_canvas.create_rectangle(5, 5, 215, 215, outline="#00A8FF", width=2)
-            self.cover_canvas.create_text(110, 95, text="💿", font=("Arial", 36), fill="#00A8FF")
-            self.cover_canvas.create_text(110, 145, text=title[:24], font=("Helvetica", 9, "bold"), fill="#FFFFFF")
+            self.cover_canvas.create_rectangle(5, 5, 205, 205, outline="#00A8FF", width=2)
+            self.cover_canvas.create_text(105, 90, text="💿", font=("Arial", 36), fill="#00A8FF")
+            self.cover_canvas.create_text(105, 135, text=title[:24], font=("Helvetica", 9, "bold"), fill="#FFFFFF")
 
     def _fetch_marketplace_data_async(self, release_id: Any):
-        """Authenticated Discogs API request for release stats and pricing."""
+        """Queries Discogs API with authentication to retrieve marketplace listings, pricing, ratings, and pressing specs."""
         try:
             rel_id_int = int(release_id)
-            logger.info(f"[🛒] Fetching Marketplace data for Discogs Release ID: {rel_id_int}")
+            logger.info(f"[🛒] Fetching Marketplace & Community data for Release ID: {rel_id_int}")
             
             discogs_cfg = self.config.get('discogs', {}) if isinstance(self.config, dict) else {}
             d_key = discogs_cfg.get('consumer_key') or discogs_cfg.get('key') or os.getenv('DISCOGS_KEY', '')
@@ -774,7 +806,6 @@ class KioskVinylVisionWindow:
 
             mkt_data = {}
 
-            # HTTP Request
             import urllib.request
             import json
 
@@ -789,39 +820,87 @@ class KioskVinylVisionWindow:
             with urllib.request.urlopen(req, timeout=5.0) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 
+                # Prezzi & Copie
                 num_sale = data.get('num_for_sale', 0)
                 lowest_p = data.get('lowest_price')
+
+                # Community Metrics
+                community = data.get('community', {})
+                rating = community.get('rating', {}).get('average')
+                have_cnt = community.get('have', 0)
+                want_cnt = community.get('want', 0)
+
+                # Pressing & Catalog specs
+                country = data.get('country', '--')
+                catno = '--'
+                labels_list = data.get('labels', [])
+                if labels_list and isinstance(labels_list, list):
+                    catno = labels_list[0].get('catno', '--')
+
+                formats_desc = []
+                for fmt in data.get('formats', []):
+                    f_name = fmt.get('name', '')
+                    descriptions = fmt.get('descriptions', [])
+                    if f_name:
+                        formats_desc.append(f_name)
+                    if descriptions:
+                        formats_desc.extend(descriptions[:2])
+                fmt_str = ", ".join(formats_desc[:3]) if formats_desc else "Vinyl, LP, Album"
 
                 mkt_data = {
                     'num_for_sale': num_sale,
                     'lowest_price': lowest_p,
-                    'currency': '€'
+                    'currency': '€',
+                    'rating': rating,
+                    'have': have_cnt,
+                    'want': want_cnt,
+                    'country': country,
+                    'catno': catno,
+                    'format_str': fmt_str
                 }
-
-                if 'community' in data and 'rating' in data['community']:
-                    mkt_data['rating'] = data['community']['rating'].get('average')
 
             logger.info(f"[🛒] Discogs Response: For sale={mkt_data.get('num_for_sale')}, Min={mkt_data.get('lowest_price')}")
             self.root.after(0, lambda: self._update_marketplace_ui(mkt_data))
 
         except Exception as e:
-            logger.warning(f"[!] Error retrieving Discogs rates for ID {release_id}: {e}")
+            logger.warning(f"[!] Error fetching Discogs rates for ID {release_id}: {e}")
             self.root.after(0, lambda: self.discogs_for_sale_label.config(text="For sale: N/A"))
 
     def _update_marketplace_ui(self, data: Dict[str, Any]):
-        """Formats and populates marketplace data and price tiers."""
+        """Formats and displays copies for sale, ratings, pressing details, and price tiers."""
         num = data.get('num_for_sale')
         curr = data.get('currency', '€')
         low = data.get('lowest_price')
+        rating = data.get('rating')
+        have = data.get('have', 0)
+        want = data.get('want', 0)
+        
+        # Aggiorna specifiche di stampa se arrivate da Discogs
+        if data.get('format_str'):
+            self.format_label.config(text=f"Format: {data['format_str']}")
+        if data.get('catno') or data.get('country'):
+            self.catno_label.config(text=f"Cat#: {data.get('catno', '--')} | Country: {data.get('country', '--')}")
 
+        # Copie in vendita
         if num is not None:
             self.discogs_for_sale_label.config(text=f"For sale: {num} copies")
         else:
             self.discogs_for_sale_label.config(text="For sale: 0 copies")
 
+        # Rating & Have / Want formatting
+        if rating is not None and float(rating) > 0:
+            self.rating_label.config(text=f"★ {float(rating):.2f}/5.0")
+        else:
+            self.rating_label.config(text="★ --/5.0")
+
+        def _fmt_count(n):
+            return f"{n/1000:.1f}k" if n >= 1000 else str(n)
+
+        self.have_want_label.config(text=f"Have: {_fmt_count(have)} • Want: {_fmt_count(want)}")
+
+        # Fasce Prezzo
         if low is not None and float(low) > 0:
             low_val = float(low)
-            # Estimated VG+ and Mint values
             med_val = low_val * 1.45
             high_val = low_val * 2.20
 
@@ -838,6 +917,7 @@ class KioskVinylVisionWindow:
     # ==========================================
     def run(self):
         self.running = True
+        self._start_capture()
         self._update_ui()
         self.root.mainloop()
 
