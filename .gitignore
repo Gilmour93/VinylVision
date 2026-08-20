@@ -291,3 +291,14 @@ examples/*.png
 examples/*.mp4
 # Image assets (too large for git)
 images/
+
+# Custom Virtual Environment
+venv_win/
+
+# Local Calibration Matrix
+calibration.npy
+
+# VinylVision Data & Assets
+data/covers/
+data/covers/*
+data/embeddings/*
