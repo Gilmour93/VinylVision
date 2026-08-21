@@ -85,3 +85,10 @@ FEATURES = {
     "export_functionality": True,
     "debug_mode": False
 }
+
+# Screensaver & Standby Configuration
+SCREENSAVER_CONFIG = {
+    "enabled": True,
+    "idle_timeout_sec": 120,       
+    "slideshow_interval_sec": 30,  
+}

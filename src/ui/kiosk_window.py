@@ -23,6 +23,7 @@ try:
     from ..core.perspective_detector import PerspectiveDetector
     from ..models.efficientnet import AlbumFeatureExtractor
     from ..utils.config import load_config
+    from ..ui.screensaver import ScreensaverOverlay
 except ImportError:
     import sys
     from pathlib import Path
@@ -30,6 +31,7 @@ except ImportError:
     sys.path.insert(0, str(current_dir.parent))
     
     from ui.widgets import AudioSpectrumVisualizer, LyricsDisplay
+    from ui.screensaver import ScreensaverOverlay
     from core.camera import CameraManager
     from core.album_pipeline import AlbumDataPipeline
     from core.perspective_detector import PerspectiveDetector
@@ -133,6 +135,31 @@ class KioskVinylVisionWindow:
 
         self.show_now_playing_view()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Screensaver & Standby State
+        screensaver_cfg = self.config.get("screensaver", {}) if isinstance(self.config, dict) else {}
+        if not screensaver_cfg:
+            try:
+                from config.config import SCREENSAVER_CONFIG
+                screensaver_cfg = SCREENSAVER_CONFIG
+            except ImportError:
+                screensaver_cfg = {"enabled": True, "idle_timeout_sec": 10, "slideshow_interval_sec": 10}
+
+        self.screensaver_enabled = screensaver_cfg.get("enabled", True)
+        self.idle_timeout_sec = float(screensaver_cfg.get("idle_timeout_sec", 10))
+        self.is_standby_active = False
+        self.last_user_interaction = time.time()
+
+        self.screensaver = ScreensaverOverlay(
+            root=self.root,
+            config=self.config,
+            pipeline=self.pipeline,
+            on_dismiss=self._on_screensaver_wake
+        )
+
+        # Traccia click e tasti per aggiornare il timestamp
+        self.root.bind("<Button-1>", self._record_user_interaction, add="+")
+        self.root.bind("<Key>", self._record_user_interaction, add="+")
 
     def _init_styles(self):
         self.style = ttk.Style()
@@ -513,6 +540,11 @@ class KioskVinylVisionWindow:
         logger.info("[📷] Camera Stream active.")
 
         while self.running and self.is_capturing:
+            # Sospensione completa durante lo screensaver/standby
+            if self.is_standby_active:
+                time.sleep(0.2)
+                continue
+
             ret, f = cap.read()
             if ret and f is not None:
                 self.latest_frame = f
@@ -537,6 +569,11 @@ class KioskVinylVisionWindow:
     def _recognition_loop(self):
         logger.info("[🧠] AI Inference Thread started.")
         while self.running and self.is_capturing:
+            # Salta l'inferenza AI e l'accesso al Vector DB durante lo standby
+            if self.is_standby_active:
+                time.sleep(0.3)
+                continue
+
             if self.latest_frame is not None and self.calibrated_corners is not None:
                 try:
                     frame = self.latest_frame.copy()
@@ -630,6 +667,8 @@ class KioskVinylVisionWindow:
 
     def _stop_capture(self):
         self.is_capturing = False
+        self.last_user_interaction = time.time()  # Avvia il countdown di inattività da questo istante
+        
         if hasattr(self, 'start_btn'):
             self.start_btn.config(state="normal")
         if hasattr(self, 'stop_btn'):
@@ -645,6 +684,13 @@ class KioskVinylVisionWindow:
     # ==========================================
     def _update_ui(self):
         if not self.running:
+            return
+
+        self._check_idle_standby()
+
+        if self.is_standby_active:
+            if self.running:
+                self.root.after(100, self._update_ui)
             return
 
         try:
@@ -1002,6 +1048,68 @@ class KioskVinylVisionWindow:
             self.price_high_label.config(text=f"Max: {curr}{float(max_p):.2f}")
         else:
             self.price_high_label.config(text="Max: --")
+
+    # ==========================================
+    # Screensaver / Standby Mode
+    # ==========================================
+
+    def _record_user_interaction(self, event=None):
+        """Records the timestamp of the last manual user touch/click."""
+        self.last_user_interaction = time.time()
+
+    def _check_idle_standby(self):
+        """
+        Activates screensaver after idle timeout ONLY if capture is stopped manually.
+        Never interrupts when capture/audio recognition is active.
+        """
+        # Se l'acquisizione è attiva (Start) o lo screensaver è già aperto o disabilitato, non fare nulla
+        if self.is_capturing or not self.screensaver_enabled or self.is_standby_active or self.screensaver.is_active:
+            return
+
+        idle_time = time.time() - self.last_user_interaction
+        if idle_time >= self.idle_timeout_sec:
+            logger.info(f"⏳ Standby triggered: capture is STOPPED and idle for {idle_time:.1f}s.")
+            self.is_standby_active = True
+            self.screensaver.show()
+
+    def _reset_idle_timer(self, event=None):
+        """Resets inactivity countdown timer."""
+        if not getattr(self, "screensaver_enabled", True):
+            return
+        
+        # Se lo screensaver è già attivo, non resettare il timer di avvio
+        if hasattr(self, "screensaver") and self.screensaver.is_active:
+            return
+        
+        if self._idle_timer_id is not None:
+            try:
+                self.root.after_cancel(self._idle_timer_id)
+            except Exception:
+                pass
+            self._idle_timer_id = None
+            
+        # Riavvia il conto alla rovescia
+        self._idle_timer_id = self.root.after(self.idle_timeout_ms, self._enter_standby)
+
+    def _enter_standby(self):
+        """Enters standby mode: pauses camera and activates screensaver."""
+        self._idle_timer_id = None
+        
+        # Se l'audio sta riproducendo attivamente una traccia, rimanda lo standby
+        if hasattr(self, "audio_engine") and self.audio_engine.running and getattr(self.audio_engine, "current_track", None):
+            logger.debug("[Screensaver] Postponed: audio track is actively playing.")
+            self._reset_idle_timer()
+            return
+
+        logger.info("⏳ Standby triggered: starting screensaver and putting camera to sleep.")
+        self.is_standby_active = True
+        self.screensaver.show()
+
+    def _on_screensaver_wake(self):
+        """Resumes camera loop when user touches the screen."""
+        self.is_standby_active = False
+        self.last_user_interaction = time.time()
+        logger.info("☀️ Woke up from standby.")
 
     # ==========================================
     # RUN / CLOSE
