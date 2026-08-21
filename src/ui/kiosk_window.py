@@ -18,7 +18,6 @@ from PIL import Image, ImageTk
 try:
     from .widgets import AudioSpectrumVisualizer, LyricsDisplay
     from ..core.camera import CameraManager
-    from ..core.vision import AlbumDetector
     from ..core.album_pipeline import AlbumDataPipeline
     from ..core.audio_engine import AudioEngine
     from ..models.efficientnet import AlbumFeatureExtractor
@@ -31,7 +30,6 @@ except ImportError:
     
     from ui.widgets import AudioSpectrumVisualizer, LyricsDisplay
     from core.camera import CameraManager
-    from core.vision import AlbumDetector
     from core.album_pipeline import AlbumDataPipeline
     from models.efficientnet import AlbumFeatureExtractor
     from utils.config import load_config
@@ -55,8 +53,7 @@ class KioskVinylVisionWindow:
 
         # 2. Initialize Core Modules
         self.camera_manager = CameraManager(self.config.get('camera', self.config_manager))
-        self.album_detector = AlbumDetector(self.config.get('detection', self.config_manager))
-        
+                
         self.feature_extractor = AlbumFeatureExtractor()
         if hasattr(self.feature_extractor, 'load_model'):
             self.feature_extractor.load_model()
