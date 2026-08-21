@@ -168,6 +168,6 @@ This project is an enhanced fork of the original work by [pmoneynz/VinylVision](
 - PyTorch & EfficientNet: For real-time visual feature extraction.
 
 
-## 📝 License
+## 📝 License & Credits
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Distributed under the MIT License. Based on the initial prototype by [Peter Wadams (pmoneynz)](https://github.com/pmoneynz), refactored and expanded by [Giovanni Fioretti (Gilmour93)](https://github.com/Gilmour93).
