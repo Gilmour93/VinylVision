@@ -1,7 +1,8 @@
 """
 Custom UI widgets for VinylVision application.
 
-Enhanced widgets for camera display, overlay rendering, and user interaction.
+Enhanced widgets for camera display, overlay rendering, audio visualization, and user interaction.
+Fully integrated with centralized theme engine (ui.theme).
 """
 
 import tkinter as tk
@@ -12,6 +13,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 from typing import List, Dict, Any, Optional, Tuple
 import time
 import io
+from ui.theme import Colors, Fonts
 
 
 class CameraDisplay(tk.Label):
@@ -42,10 +44,10 @@ class CameraDisplay(tk.Label):
         self.bind("<ButtonRelease-1>", self._on_mouse_up)
         
         self.configure(
-            bg="black",
+            bg=Colors.BG_ROOT,
             text="Camera Initializing...",
-            fg="white",
-            font=("Arial", 14),
+            fg=Colors.TEXT_PRIMARY,
+            font=Fonts.SETTINGS_TITLE,
             cursor="arrow"
         )
     
@@ -128,24 +130,24 @@ class CameraDisplay(tk.Label):
             draw = ImageDraw.Draw(image)
             
             if self.overlay_enabled:
-                font = ImageFont.load_default()
+                font = Fonts.get_pil_font(Fonts.DETAIL_LABEL)
                 scaled_pts = [(int(p[0] * self.scale), int(p[1] * self.scale)) for p in self.corners]
                 
                 if self.calibration_mode:
-                    # In calibration mode: magenta polygon and interactive control handles
-                    draw.polygon(scaled_pts, outline="#FF007F", width=3)
+                    # In calibration mode: accent polygon and interactive control handles
+                    draw.polygon(scaled_pts, outline=Colors.ACCENT_PRIMARY, width=3)
                     labels = ["TL", "TR", "BR", "BL"]
-                    handle_colors = ["#FF3333", "#FFFF33", "#3388FF", "#FF33FF"]
+                    handle_colors = [Colors.ACCENT_DANGER, Colors.ACCENT_WARNING, Colors.ACCENT_PRIMARY, Colors.ACCENT_DISCOGS]
                     r = 8
                     for (pt, col, lbl) in zip(scaled_pts, handle_colors, labels):
-                        draw.ellipse([pt[0]-r, pt[1]-r, pt[0]+r, pt[1]+r], fill=col, outline="white", width=2)
-                        draw.text((pt[0] + 12, pt[1] - 8), lbl, fill="white", font=font)
+                        draw.ellipse([pt[0]-r, pt[1]-r, pt[0]+r, pt[1]+r], fill=col, outline=Colors.TEXT_PRIMARY, width=2)
+                        draw.text((pt[0] + 12, pt[1] - 8), lbl, fill=Colors.TEXT_PRIMARY, font=font)
                     
-                    draw.text((15, 15), "LIVE CALIBRATION - Drag the 4 corner pins to align the stand", fill="#FFCC00", font=font)
+                    draw.text((15, 15), "LIVE CALIBRATION - Drag the 4 corner pins to align the stand", fill=Colors.ACCENT_WARNING, font=font)
                 else:
-                    # Normal mode: green polygon around calibrated area
-                    draw.polygon(scaled_pts, outline="#00FF66", width=2)
-                    draw.text((scaled_pts[0][0] + 5, max(5, scaled_pts[0][1] - 18)), "VINYL AREA (WARP 1:1)", fill="#00FF66", font=font)
+                    # Normal mode: subtle accent polygon around calibrated area
+                    draw.polygon(scaled_pts, outline=Colors.ACCENT_SUCCESS, width=2)
+                    draw.text((scaled_pts[0][0] + 5, max(5, scaled_pts[0][1] - 18)), "VINYL AREA (WARP 1:1)", fill=Colors.ACCENT_SUCCESS, font=font)
                 
                 if self.fps_display:
                     self._draw_fps(draw, (new_w, new_h))
@@ -194,20 +196,20 @@ class CameraDisplay(tk.Label):
         x1, x2 = int(x1 * scale_x), int(x2 * scale_x)
         y1, y2 = int(y1 * scale_y), int(y2 * scale_y)
         
-        color = "green" if confidence > 0.8 else ("yellow" if confidence > 0.6 else "red")
+        color = Colors.ACCENT_SUCCESS if confidence > 0.8 else (Colors.ACCENT_WARNING if confidence > 0.6 else Colors.ACCENT_DANGER)
         draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
     
     def _draw_fps(self, draw: ImageDraw.Draw, image_size: Tuple[int, int]):
         fps_text = f"FPS: {self.current_fps:.1f}"
-        font = ImageFont.load_default()
-        draw.text((image_size[0] - 70, 10), fps_text, fill="white", font=font)
+        font = Fonts.get_pil_font(Fonts.DETAIL_LABEL)
+        draw.text((image_size[0] - 70, 10), fps_text, fill=Colors.TEXT_PRIMARY, font=font)
     
     def _draw_crosshair(self, draw: ImageDraw.Draw, image_size: Tuple[int, int]):
         center_x = image_size[0] // 2
         center_y = image_size[1] // 2
         size = 20
-        draw.line([center_x - size, center_y, center_x + size, center_y], fill="white", width=2)
-        draw.line([center_x, center_y - size, center_x, center_y + size], fill="white", width=2)
+        draw.line([center_x - size, center_y, center_x + size, center_y], fill=Colors.TEXT_PRIMARY, width=2)
+        draw.line([center_x, center_y - size, center_x, center_y + size], fill=Colors.TEXT_PRIMARY, width=2)
 
     def set_overlay_enabled(self, enabled: bool):
         self.overlay_enabled = enabled
@@ -220,34 +222,34 @@ class ConfidenceMeter(ttk.Frame):
     """Animated confidence meter widget displaying current match likelihood and threshold."""
     
     def __init__(self, parent, **kwargs):
-        super().__init__(parent, **kwargs)
+        super().__init__(parent, style="Card.TFrame", **kwargs)
         self.confidence_var = tk.DoubleVar(value=0.0)
         self.threshold_var = tk.DoubleVar(value=0.6)
         self._setup_ui()
     
     def _setup_ui(self):
-        header_frame = ttk.Frame(self)
+        header_frame = tk.Frame(self, bg=Colors.BG_CARD)
         header_frame.pack(fill="x")
         
-        ttk.Label(header_frame, text="Likelihood:", font=("Arial", 10, "bold")).pack(side="left")
-        self.status_label = ttk.Label(header_frame, text="●", font=("Arial", 14), foreground="gray")
+        tk.Label(header_frame, text="Likelihood:", font=Fonts.SETTINGS_LABEL, fg=Colors.TEXT_PRIMARY, bg=Colors.BG_CARD).pack(side="left")
+        self.status_label = tk.Label(header_frame, text="●", font=Fonts.SETTINGS_TITLE, fg=Colors.TEXT_MUTED, bg=Colors.BG_CARD)
         self.status_label.pack(side="right")
         
         self.progress = ttk.Progressbar(
             self, 
             length=200, 
-            mode='determinate',
+            mode='determinate', 
             variable=self.confidence_var
         )
         self.progress.pack(fill="x", pady=4)
         
-        info_frame = ttk.Frame(self)
+        info_frame = tk.Frame(self, bg=Colors.BG_CARD)
         info_frame.pack(fill="x", pady=2)
         
-        self.value_label = ttk.Label(info_frame, text="Likelihood: 0.0%", font=("Arial", 9, "bold"))
+        self.value_label = tk.Label(info_frame, text="Likelihood: 0.0%", font=Fonts.DETAIL_VALUE, fg=Colors.TEXT_PRIMARY, bg=Colors.BG_CARD)
         self.value_label.pack(side="left")
         
-        self.threshold_label = ttk.Label(info_frame, text="Threshold: 60%", font=("Arial", 9))
+        self.threshold_label = tk.Label(info_frame, text="Threshold: 60%", font=Fonts.DETAIL_LABEL, fg=Colors.TEXT_MUTED, bg=Colors.BG_CARD)
         self.threshold_label.pack(side="right")
     
     def update_confidence(self, confidence: float):
@@ -257,11 +259,11 @@ class ConfidenceMeter(ttk.Frame):
         
         threshold = self.threshold_var.get()
         if confidence >= threshold:
-            self.status_label.config(text="●", foreground="green")
+            self.status_label.config(text="●", fg=Colors.ACCENT_SUCCESS)
         elif confidence >= threshold * 0.75:
-            self.status_label.config(text="●", foreground="yellow")
+            self.status_label.config(text="●", fg=Colors.ACCENT_WARNING)
         else:
-            self.status_label.config(text="●", foreground="red")
+            self.status_label.config(text="●", fg=Colors.ACCENT_DANGER)
     
     def set_threshold(self, threshold: float):
         self.threshold_var.set(threshold)
@@ -276,21 +278,22 @@ class AlbumCoverDisplay(tk.Label):
         self.size = size
         self.placeholder_image = None
         self.configure(
-            bg="lightgray",
+            bg=Colors.BG_CANVAS_EMPTY,
             text="No Album",
+            fg=Colors.TEXT_MUTED,
             compound="center",
-            font=("Arial", 10)
+            font=Fonts.DETAIL_LABEL
         )
         self._create_placeholder()
     
     def _create_placeholder(self):
-        placeholder = Image.new('RGB', self.size, color='lightgray')
+        placeholder = Image.new('RGB', self.size, color=Colors.BG_CANVAS_EMPTY)
         draw = ImageDraw.Draw(placeholder)
         center_x, center_y = self.size[0] // 2, self.size[1] // 2
         radius = min(self.size) // 3
-        draw.ellipse([center_x - radius, center_y - radius, center_x + radius, center_y + radius], outline='gray', width=2)
+        draw.ellipse([center_x - radius, center_y - radius, center_x + radius, center_y + radius], outline=Colors.BORDER_FOCUS, width=2)
         inner_radius = radius // 6
-        draw.ellipse([center_x - inner_radius, center_y - inner_radius, center_x + inner_radius, center_y + inner_radius], outline='gray', width=2)
+        draw.ellipse([center_x - inner_radius, center_y - inner_radius, center_x + inner_radius, center_y + inner_radius], outline=Colors.BORDER_FOCUS, width=2)
         self.placeholder_image = ImageTk.PhotoImage(placeholder)
         self.configure(image=self.placeholder_image)
     
@@ -303,31 +306,31 @@ class AlbumCoverDisplay(tk.Label):
                 self.configure(image=photo, text="")
                 self.image = photo
             else:
-                self.configure(image=self.placeholder_image, text="No Album")
+                self.configure(image=self.placeholder_image, text="No Album", fg=Colors.TEXT_MUTED)
         except Exception as e:
             print(f"Error updating album cover: {e}")
-            self.configure(image=self.placeholder_image, text="Error Loading")
+            self.configure(image=self.placeholder_image, text="Error Loading", fg=Colors.ACCENT_DANGER)
 
 
 class StatusIndicator(ttk.Frame):
     """System status indicator with multiple states."""
     
     def __init__(self, parent, **kwargs):
-        super().__init__(parent, **kwargs)
+        super().__init__(parent, style="Card.TFrame", **kwargs)
         self.states = {
-            'disconnected': {'color': 'red', 'text': 'Disconnected'},
-            'connecting': {'color': 'yellow', 'text': 'Connecting...'},
-            'ready': {'color': 'green', 'text': 'Ready'},
-            'processing': {'color': 'blue', 'text': 'Processing'},
-            'error': {'color': 'red', 'text': 'Error'}
+            'disconnected': {'color': Colors.ACCENT_DANGER, 'text': 'Disconnected'},
+            'connecting': {'color': Colors.ACCENT_WARNING, 'text': 'Connecting...'},
+            'ready': {'color': Colors.ACCENT_SUCCESS, 'text': 'Ready'},
+            'processing': {'color': Colors.ACCENT_PRIMARY, 'text': 'Processing'},
+            'error': {'color': Colors.ACCENT_DANGER, 'text': 'Error'}
         }
         self.current_state = 'disconnected'
         self._setup_ui()
     
     def _setup_ui(self):
-        self.indicator = ttk.Label(self, text="●", font=("Arial", 12))
+        self.indicator = tk.Label(self, text="●", font=Fonts.LOGO, bg=Colors.BG_CARD)
         self.indicator.pack(side="left", padx=(0, 5))
-        self.status_label = ttk.Label(self, text="Disconnected", font=("Arial", 9))
+        self.status_label = tk.Label(self, text="Disconnected", font=Fonts.DETAIL_LABEL, fg=Colors.TEXT_PRIMARY, bg=Colors.BG_CARD)
         self.status_label.pack(side="left")
         self.set_state('disconnected')
     
@@ -336,7 +339,7 @@ class StatusIndicator(ttk.Frame):
             return
         self.current_state = state
         state_info = self.states[state]
-        self.indicator.config(foreground=state_info['color'])
+        self.indicator.config(fg=state_info['color'])
         self.status_label.config(text=custom_text or state_info['text'])
 
 
@@ -355,20 +358,20 @@ class PerformanceMonitor(ttk.LabelFrame):
         self._start_monitoring()
     
     def _setup_ui(self):
-        ttk.Label(self, text="FPS:", font=("Arial", 9)).grid(row=0, column=0, sticky="w")
-        self.fps_label = ttk.Label(self, text="0.0", font=("Arial", 9, "bold"))
+        ttk.Label(self, text="FPS:", font=Fonts.DETAIL_LABEL).grid(row=0, column=0, sticky="w")
+        self.fps_label = ttk.Label(self, text="0.0", font=Fonts.DETAIL_VALUE)
         self.fps_label.grid(row=0, column=1, sticky="w", padx=(5, 0))
         
-        ttk.Label(self, text="Process:", font=("Arial", 9)).grid(row=1, column=0, sticky="w")
-        self.process_label = ttk.Label(self, text="0ms", font=("Arial", 9, "bold"))
+        ttk.Label(self, text="Process:", font=Fonts.DETAIL_LABEL).grid(row=1, column=0, sticky="w")
+        self.process_label = ttk.Label(self, text="0ms", font=Fonts.DETAIL_VALUE)
         self.process_label.grid(row=1, column=1, sticky="w", padx=(5, 0))
         
-        ttk.Label(self, text="Memory:", font=("Arial", 9)).grid(row=2, column=0, sticky="w")
-        self.memory_label = ttk.Label(self, text="0MB", font=("Arial", 9, "bold"))
+        ttk.Label(self, text="Memory:", font=Fonts.DETAIL_LABEL).grid(row=2, column=0, sticky="w")
+        self.memory_label = ttk.Label(self, text="0MB", font=Fonts.DETAIL_VALUE)
         self.memory_label.grid(row=2, column=1, sticky="w", padx=(5, 0))
         
-        ttk.Label(self, text="Queue:", font=("Arial", 9)).grid(row=3, column=0, sticky="w")
-        self.queue_label = ttk.Label(self, text="0", font=("Arial", 9, "bold"))
+        ttk.Label(self, text="Queue:", font=Fonts.DETAIL_LABEL).grid(row=3, column=0, sticky="w")
+        self.queue_label = ttk.Label(self, text="0", font=Fonts.DETAIL_VALUE)
         self.queue_label.grid(row=3, column=1, sticky="w", padx=(5, 0))
     
     def _start_monitoring(self):
@@ -394,37 +397,79 @@ class PerformanceMonitor(ttk.LabelFrame):
 
 
 class AudioSpectrumVisualizer(tk.Canvas):
-    """Real-time retro FFT audio spectrum equalizer bar visualizer."""
-    
-    def __init__(self, parent, width=300, height=80, **kwargs):
-        super().__init__(parent, width=width, height=height, bg="#111115", highlightthickness=0, **kwargs)
+    """
+    Renders real-time FFT spectrum bars filling 100% of available canvas width.
+    Handles dynamic responsive width and NumPy/list arrays safely.
+    """
+    def __init__(self, parent, width: int = 180, height: int = 40, num_bars: int = 24, **kwargs):
+        super().__init__(
+            parent,
+            width=width,
+            height=height,
+            bg=Colors.BG_CARD,
+            highlightthickness=0,
+            **kwargs
+        )
         self.w = width
         self.h = height
+        self.num_bars = num_bars
+        self.bar_values = [0.0] * num_bars
+        self.target_values = [0.0] * num_bars
+        self.bind("<Configure>", self._on_resize)
 
-    def render_spectrum(self, fft_bands: np.ndarray):
+    def _on_resize(self, event):
+        """Captures actual runtime width when packed with fill=tk.X."""
+        if event.width > 10:
+            self.w = event.width
+            self.h = event.height
+            self._redraw()
+
+    def render_spectrum(self, spectrum_data: Any = None):
+        """Standard update entry point expected by kiosk_window."""
+        self.update_levels(spectrum_data)
+
+    def update_levels(self, levels: Any = None):
+        """Sets new target FFT levels safely and triggers redraw."""
+        if levels is None or len(levels) == 0:
+            self.target_values = [0.0] * self.num_bars
+        else:
+            total_len = len(levels)
+            step = max(1, total_len // self.num_bars)
+            self.target_values = [
+                min(1.0, max(0.0, float(levels[i * step]) if i * step < total_len else 0.0))
+                for i in range(self.num_bars)
+            ]
+        self._redraw()
+
+    def _redraw(self):
         self.delete("all")
-        if fft_bands is None:
+        if self.num_bars == 0:
             return
-        n_bars = len(fft_bands)
-        if n_bars == 0:
-            return
+
+        # Rileva la larghezza effettiva per coprire tutto lo spazio
+        canvas_width = self.winfo_width() if self.winfo_width() > 10 else self.w
+        canvas_height = self.winfo_height() if self.winfo_height() > 10 else self.h
+
+        spacing = 2
+        total_spacing = spacing * (self.num_bars - 1)
+        bar_width = max(1.0, (canvas_width - total_spacing) / float(self.num_bars))
+
+        for i, val in enumerate(self.target_values):
+            self.bar_values[i] += (val - self.bar_values[i]) * 0.4
+            bar_h = max(2, int(self.bar_values[i] * (canvas_height - 4)))
             
-        bar_width = (self.w - (n_bars * 2)) / n_bars
-        
-        for i, val in enumerate(fft_bands):
-            x0 = i * (bar_width + 2) + 2
-            x1 = x0 + bar_width
-            bar_height = max(3, int(val * (self.h - 10)))
-            y0 = self.h - bar_height
-            y1 = self.h
-            
-            # Color gradient: Green -> Yellow -> Red on peak levels
-            color = "#00FF66" if val < 0.6 else ("#FFFF00" if val < 0.85 else "#FF0055")
-            self.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
+            x0 = int(i * (bar_width + spacing))
+            # L'ultima barra si estende esattamente fino al pixel finale del canvas
+            x1 = canvas_width if i == self.num_bars - 1 else int(x0 + bar_width)
+            y0 = canvas_height - bar_h
+            y1 = canvas_height
+
+            fill_color = Colors.SPECTRUM_PEAK if self.bar_values[i] > 0.85 else Colors.SPECTRUM_BAR
+            self.create_rectangle(x0, y0, x1, y1, fill=fill_color, width=0)
 
 
 class LyricsDisplay(ttk.Frame):
-    """7-line synchronized lyrics display and Spotify-style Progress Bar with vertical centering."""
+    """7-line synchronized lyrics display and Spotify-style Progress Bar using theme tokens."""
     
     def __init__(self, parent, **kwargs):
         super().__init__(parent, style="Card.TFrame", **kwargs)
@@ -434,57 +479,145 @@ class LyricsDisplay(ttk.Frame):
         self.track_header = tk.Label(
             self, 
             text="SYNCHRONIZED LYRICS", 
-            font=("Helvetica", 9, "bold"), 
-            fg="#1DB954",  # Spotify Green
-            bg="#1A1A1E"
+            font=Fonts.SECTION_HEADER, 
+            fg=Colors.ACCENT_SUCCESS,  # Highlight Hi-Fi / Spotify Green
+            bg=Colors.BG_CARD
         )
         self.track_header.pack(anchor="w", pady=(0, 4))
 
         # 2. Lyrics lines container (expands to center vertically)
-        self.lines_container = tk.Frame(self, bg="#1A1A1E")
+        self.lines_container = tk.Frame(self, bg=Colors.BG_CARD)
         self.lines_container.pack(fill=tk.BOTH, expand=True)
 
-        # 7 Lines with gradual fading toward borders
-        # Line -3 (faded)
-        self.lbl_p3 = tk.Label(self.lines_container, text="", font=("Helvetica", 9), fg="#303038", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
+        # 7 Lines with gradual fading toward borders based on theme hierarchy
+        # Line -3 (distant past)
+        self.lbl_p3 = tk.Label(
+            self.lines_container, 
+            text="", 
+            font=Fonts.LYRICS_LINE_DIST, 
+            fg=Colors.LYRICS_DISTANT, 
+            bg=Colors.BG_CARD, 
+            anchor="w", 
+            wraplength=580, 
+            justify="left"
+        )
         self.lbl_p3.pack(fill=tk.BOTH, expand=True, pady=1)
 
-        # Line -2 (faded)
-        self.lbl_p2 = tk.Label(self.lines_container, text="", font=("Helvetica", 11), fg="#484855", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
+        # Line -2 (far past)
+        self.lbl_p2 = tk.Label(
+            self.lines_container, 
+            text="", 
+            font=Fonts.LYRICS_LINE_FAR, 
+            fg=Colors.LYRICS_FAR, 
+            bg=Colors.BG_CARD, 
+            anchor="w", 
+            wraplength=580, 
+            justify="left"
+        )
         self.lbl_p2.pack(fill=tk.BOTH, expand=True, pady=1)
 
-        # Line -1 (near active)
-        self.lbl_p1 = tk.Label(self.lines_container, text="", font=("Helvetica", 13), fg="#757585", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
+        # Line -1 (near past)
+        self.lbl_p1 = tk.Label(
+            self.lines_container, 
+            text="", 
+            font=Fonts.LYRICS_LINE_NEAR, 
+            fg=Colors.LYRICS_NEAR, 
+            bg=Colors.BG_CARD, 
+            anchor="w", 
+            wraplength=580, 
+            justify="left"
+        )
         self.lbl_p1.pack(fill=tk.BOTH, expand=True, pady=2)
 
-        # Line 0 (ACTIVE / NOW SINGING)
-        self.lbl_curr = tk.Label(self.lines_container, text="Waiting for track...", font=("Helvetica", 16, "bold"), fg="#FFFFFF", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
+        # Line 0 (ACTIVE / NOW SINGING - Full Focus)
+        self.lbl_curr = tk.Label(
+            self.lines_container, 
+            text="Waiting for track...", 
+            font=Fonts.LYRICS_LINE_ACTIVE, 
+            fg=Colors.LYRICS_ACTIVE, 
+            bg=Colors.BG_CARD, 
+            anchor="w", 
+            wraplength=580, 
+            justify="left"
+        )
         self.lbl_curr.pack(fill=tk.BOTH, expand=True, pady=3)
 
         # Line +1 (next line)
-        self.lbl_n1 = tk.Label(self.lines_container, text="", font=("Helvetica", 13), fg="#757585", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
+        self.lbl_n1 = tk.Label(
+            self.lines_container, 
+            text="", 
+            font=Fonts.LYRICS_LINE_NEAR, 
+            fg=Colors.LYRICS_NEAR, 
+            bg=Colors.BG_CARD, 
+            anchor="w", 
+            wraplength=580, 
+            justify="left"
+        )
         self.lbl_n1.pack(fill=tk.BOTH, expand=True, pady=2)
 
         # Line +2 (upcoming)
-        self.lbl_n2 = tk.Label(self.lines_container, text="", font=("Helvetica", 11), fg="#484855", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
+        self.lbl_n2 = tk.Label(
+            self.lines_container, 
+            text="", 
+            font=Fonts.LYRICS_LINE_FAR, 
+            fg=Colors.LYRICS_FAR, 
+            bg=Colors.BG_CARD, 
+            anchor="w", 
+            wraplength=580, 
+            justify="left"
+        )
         self.lbl_n2.pack(fill=tk.BOTH, expand=True, pady=1)
 
-        # Line +3 (faded upcoming)
-        self.lbl_n3 = tk.Label(self.lines_container, text="", font=("Helvetica", 9), fg="#303038", bg="#1A1A1E", anchor="w", wraplength=580, justify="left")
+        # Line +3 (distant upcoming)
+        self.lbl_n3 = tk.Label(
+            self.lines_container, 
+            text="", 
+            font=Fonts.LYRICS_LINE_DIST, 
+            fg=Colors.LYRICS_DISTANT, 
+            bg=Colors.BG_CARD, 
+            anchor="w", 
+            wraplength=580, 
+            justify="left"
+        )
         self.lbl_n3.pack(fill=tk.BOTH, expand=True, pady=1)
 
         # 3. Spotify Progress Bar & Timers
-        self.progress_container = tk.Frame(self, bg="#1A1A1E")
+        self.progress_container = tk.Frame(self, bg=Colors.BG_CARD)
         self.progress_container.pack(fill=tk.X, pady=(6, 0))
 
-        self.time_cur_lbl = tk.Label(self.progress_container, text="0:00", font=("Helvetica", 9), fg="#A0A0A8", bg="#1A1A1E", width=5, anchor="w")
+        self.time_cur_lbl = tk.Label(
+            self.progress_container, 
+            text="0:00", 
+            font=Fonts.DETAIL_LABEL, 
+            fg=Colors.TEXT_MUTED, 
+            bg=Colors.BG_CARD, 
+            width=5, 
+            anchor="w"
+        )
         self.time_cur_lbl.pack(side=tk.LEFT)
 
-        self.prog_canvas = tk.Canvas(self.progress_container, bg="#33333A", height=5, highlightthickness=0)
+        self.prog_canvas = tk.Canvas(
+            self.progress_container, 
+            bg=Colors.BORDER_FOCUS, 
+            height=5, 
+            highlightthickness=0
+        )
         self.prog_canvas.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=6)
-        self.prog_bar = self.prog_canvas.create_rectangle(0, 0, 0, 5, fill="#1DB954", width=0)
+        self.prog_bar = self.prog_canvas.create_rectangle(
+            0, 0, 0, 5, 
+            fill=Colors.ACCENT_SUCCESS, 
+            width=0
+        )
 
-        self.time_tot_lbl = tk.Label(self.progress_container, text="--:--", font=("Helvetica", 9), fg="#A0A0A8", bg="#1A1A1E", width=5, anchor="e")
+        self.time_tot_lbl = tk.Label(
+            self.progress_container, 
+            text="--:--", 
+            font=Fonts.DETAIL_LABEL, 
+            fg=Colors.TEXT_MUTED, 
+            bg=Colors.BG_CARD, 
+            width=5, 
+            anchor="e"
+        )
         self.time_tot_lbl.pack(side=tk.RIGHT)
 
     @staticmethod

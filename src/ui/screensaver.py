@@ -4,6 +4,7 @@ import tkinter as tk
 from PIL import Image, ImageTk, ImageFilter, ImageEnhance, ImageDraw, ImageFont
 from loguru import logger
 from typing import Optional, Callable, Dict, Any, List
+from ui.theme import Colors, Fonts
 
 
 class ScreensaverOverlay:
@@ -32,7 +33,7 @@ class ScreensaverOverlay:
         self._current_pil_slide: Optional[Image.Image] = None
         self._target_pil_slide: Optional[Image.Image] = None
         self._fade_step = 0
-        self._total_fade_steps = 12  # Numero di frame della transizione (fluido e leggero)
+        self._total_fade_steps = 12
         
         self.collection_items: List[Dict[str, Any]] = []
         self._load_local_collection()
@@ -202,9 +203,9 @@ class ScreensaverOverlay:
             
             # Caricamento font di sistema con fallback robusto
             try:
-                font_title = ImageFont.truetype("arialbd.ttf", 26)
-                font_sub = ImageFont.truetype("arialbd.ttf", 18)
-                font_hint = ImageFont.truetype("arial.ttf", 12)
+                font_title = Fonts.get_pil_font(Fonts.SCREENSAVER_TITLE)
+                font_sub = Fonts.get_pil_font(Fonts.SCREENSAVER_ARTIST)
+                font_hint = Fonts.get_pil_font(Fonts.SCREENSAVER_HINT)
             except Exception:
                 font_title = ImageFont.load_default()
                 font_sub = ImageFont.load_default()
