@@ -13,7 +13,7 @@ This document tracks planned features, enhancements, and technical debt for upco
 
 - [ ] **Dedicated Kiosk Mode**
   - Add `--kiosk` / `--fullscreen` CLI flag to hide window decorations and launch borderless on dedicated displays (e.g., Raspberry Pi Touch Displays).
-- [ ] **Standby & Screensaver Mode**
+- [x] **Standby & Screensaver Mode**
   - Displays a full-screen ambient slideshow cycling through random album covers and artist info from the local collection database when idle (no vinyl on stand for $N$ minutes).
   - Wakes up instantly on touch/click.
 - [ ] **Smooth Lyrics Scrolling**
