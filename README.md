@@ -98,7 +98,7 @@ DISCOGS_SECRET = "YOUR_DISCOGS_CONSUMER_SECRET"
 
    1. In the app, click ⚙ Settings (or press the C key).
    2. The live camera feed will show 4 colored draggable pins.
-   3. Click SAve Calibration to persist the geometric matrix.
+   3. Click Save Calibration to persist the geometric matrix.
    4. Click Dashboard to return to the live Now Playing view.
 
 3. **Collection Sync & Album Management**
