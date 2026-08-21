@@ -1,6 +1,6 @@
 """
 Audio Engine for VinylVision: Real-time FFT with Auto-Gain, 
-Shazam Fingerprinting with Latency Compensation, and Synced Lyrics.
+Shazam Fingerprinting with Measured Latency Compensation, and Synced Lyrics.
 """
 
 import threading
@@ -12,6 +12,7 @@ import requests
 import io
 import wave
 import re
+import urllib.parse
 from typing import Optional, Dict, Any, List, Tuple
 from loguru import logger
 from shazamio import Shazam
@@ -27,17 +28,16 @@ class AudioEngine:
         self.stream: Optional[sd.InputStream] = None
         self.fft_data = np.zeros(self.n_fft_bands, dtype=np.float32)
         
-        # Auto-Gain per equalizzatore FFT (evita saturazione continua)
+        # Auto-Gain per equalizzatore FFT
         self.peak_energy = 0.05
         
-        # Gestione Tracking Brano e Testo
+        # Gestione Tracking Brano, Offset e Testi
         self.current_artist: Optional[str] = None
-        self.current_offset: float = 0.0
-        self.last_sync_time: float = 0.0
-        self.playback_start_time: float = 0.0
-        self.track_offset: float = 0.0
-        self.lyrics_lines: List[Tuple[float, str]] = []
         self.current_track: Optional[str] = None
+        self.current_duration: float = 0.0
+        self.current_offset: float = 0.0
+        self.playback_start_time: float = 0.0
+        self.lyrics_lines: List[Tuple[float, str]] = []
         self.is_identifying = False
 
         self.shazam = Shazam()
@@ -47,7 +47,6 @@ class AudioEngine:
         if self.running:
             return
             
-        # Lista di configurazioni da tentare in ordine di compatibilità
         fallback_configs = [
             (self.sample_rate, 1),
             (48000, 1),
@@ -56,7 +55,6 @@ class AudioEngine:
             (16000, 1)
         ]
         
-        # Prova a recuperare prima il sample rate nativo del dispositivo predefinito
         try:
             default_device = sd.query_devices(kind='input')
             native_rate = int(default_device.get('default_samplerate', 44100))
@@ -93,7 +91,6 @@ class AudioEngine:
         if status:
             pass
             
-        # Se lo stream è stereo, prende solo il primo canale
         audio_samples = indata[:, 0]
         windowed = audio_samples * np.hanning(len(audio_samples))
         fft_vals = np.abs(np.fft.rfft(windowed))
@@ -132,27 +129,17 @@ class AudioEngine:
         """Restituisce le altezze delle barre (0.0 - 1.0)."""
         return self.fft_data.copy()
 
-    def get_current_playback_time(self) -> float:
-        """Restituisce il secondo esatto di riproduzione corrente."""
-        if self.current_offset <= 0 or self.last_sync_time <= 0:
-            return 0.0
-        elapsed = time.time() - self.last_sync_time
-        return self.current_offset + elapsed
-
     def get_7_lyrics_lines(self) -> Tuple[str, str, str, str, str, str, str]:
-        """Restituisce le 7 righe sincronizzate (p3, p2, p1, curr, n1, n2, n3) rispetto all'offset reale."""
-        lines = getattr(self, 'lyrics_lines', None) or getattr(self, 'current_lyrics', None)
+        """Restituisce le 7 righe sincronizzate (p3, p2, p1, curr, n1, n2, n3) rispetto all'offset reale misurato."""
+        lines = self.lyrics_lines
         if not lines:
             return "", "", "", "", "", "", ""
 
-        # Calcola i secondi effettivi trascorsi dall'inizio del brano
         now = time.time()
-        start_t = getattr(self, 'playback_start_time', 0.0)
+        start_t = self.playback_start_time
         
-        if start_t > 0.0:
-            elapsed = now - start_t
-        else:
-            elapsed = getattr(self, 'track_offset', 0.0)
+        # Posizione temporale esatta nel brano
+        elapsed = max(0.0, now - start_t) if start_t > 0.0 else self.current_offset
 
         # Trova la linea attiva (l'ultima con timestamp <= elapsed)
         current_idx = 0
@@ -207,17 +194,14 @@ class AudioEngine:
             self.is_identifying = False
 
     async def _identify_task(self):
-        import io
-        import wave
-        import urllib.request
-        import json
-
-        logger.info("[🎙] Registrazione 4.5s per Shazam...")
-        record_sec = 4.5
+        logger.info("[🎙] Registrazione 4.0s per Shazam...")
+        record_sec = 4.0
+        
+        # Misurazione precisa: inizio esatto della finestra di campionamento
         t_record_start = time.time()
 
         try:
-            # 1. Registra 4.5 secondi di audio
+            # 1. Registra i campioni dal microfono
             audio_rec = sd.rec(
                 int(record_sec * self.sample_rate),
                 samplerate=self.sample_rate,
@@ -225,6 +209,7 @@ class AudioEngine:
                 dtype='int16'
             )
             sd.wait()
+            t_record_end = time.time()
 
             # 2. Crea buffer WAV in memoria
             wav_buffer = io.BytesIO()
@@ -236,8 +221,11 @@ class AudioEngine:
 
             wav_bytes = wav_buffer.getvalue()
 
+            # 3. Invio fingerprint ed elaborazione di rete
             logger.info("[🔍] Invio fingerprint a Shazam...")
+            t_network_start = time.time()
             out = await self.shazam.recognize(wav_bytes)
+            t_response_received = time.time()
 
             if not out or not out.get('track'):
                 logger.info("[✖] Shazam: Nessun brano riconosciuto in questo frammento.")
@@ -247,16 +235,22 @@ class AudioEngine:
             title = track_info.get('title', '')
             artist = track_info.get('subtitle', '')
             matches = out.get('matches', [])
-            raw_offset = matches[0].get('offset', 0.0) if matches else 0.0
+            raw_offset = float(matches[0].get('offset', 0.0)) if matches else 0.0
 
-            now = time.time()
-            total_latency = now - t_record_start
-            compensated_offset = raw_offset + total_latency
+            # 4. MISURAZIONE RIGOROSA DEL TEMPO:
+            # raw_offset corrisponde al timestamp della canzone all'istante t_record_start.
+            # Per allineare il testo al cantato in cassa, anticipiamo di 0.6s
+            SYNC_LEAD_SEC = 0.60  
 
-            # 3. Estrazione durata brano
-            duration_sec = 0.0
+            # T0 assoluto della traccia
+            measured_playback_start = t_record_start - raw_offset - SYNC_LEAD_SEC
             
-            # Controllo sezioni Shazam
+            # Posizione attuale in tempo reale al momento del rendering
+            current_exact_offset = t_response_received - measured_playback_start
+            network_delay = t_response_received - t_network_start
+
+            # 5. Estrazione durata brano
+            duration_sec = 0.0
             for section in track_info.get('sections', []):
                 for meta in section.get('metadata', []):
                     if meta.get('title', '').lower() in ['duration', 'durata', 'length']:
@@ -264,7 +258,6 @@ class AudioEngine:
                         if len(parts) == 2:
                             duration_sec = float(parts[0]) * 60 + float(parts[1])
 
-            # Se Shazam non ha la durata nei metadata, interroghiamo iTunes Search API (istantanea)
             if duration_sec == 0.0:
                 try:
                     q = urllib.parse.quote(f"{artist} {title}")
@@ -278,16 +271,19 @@ class AudioEngine:
                     pass
 
             self.current_duration = duration_sec
-
             dur_str = f"{int(duration_sec // 60)}:{int(duration_sec % 60):02d}" if duration_sec > 0 else "N/D"
-            logger.info(f"[✔] Shazam Match: {artist} - {title} | Offset: {compensated_offset:.2f}s | Durata: {dur_str} (Latenza: +{total_latency:.2f}s)")
+            logger.info(
+                f"[✔] Shazam Match: {artist} - {title} | "
+                f"Posizione reale: {current_exact_offset:.2f}s | "
+                f"Durata: {dur_str} | "
+                f"Latenza rete misurata: {network_delay:.2f}s"
+            )
 
             is_new_song = (self.current_track != title or self.current_artist != artist)
             self.current_track = title
             self.current_artist = artist
-            self.current_offset = compensated_offset
-            self.last_sync_time = now
-            self.playback_start_time = now - compensated_offset
+            self.current_offset = current_exact_offset
+            self.playback_start_time = measured_playback_start
 
             if is_new_song:
                 self._fetch_lyrics(artist, title)
