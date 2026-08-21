@@ -20,6 +20,7 @@ try:
     from ..core.camera import CameraManager
     from ..core.album_pipeline import AlbumDataPipeline
     from ..core.audio_engine import AudioEngine
+    from ..core.perspective_detector import PerspectiveDetector
     from ..models.efficientnet import AlbumFeatureExtractor
     from ..utils.config import load_config
 except ImportError:
@@ -31,6 +32,7 @@ except ImportError:
     from ui.widgets import AudioSpectrumVisualizer, LyricsDisplay
     from core.camera import CameraManager
     from core.album_pipeline import AlbumDataPipeline
+    from core.perspective_detector import PerspectiveDetector
     from models.efficientnet import AlbumFeatureExtractor
     from utils.config import load_config
     from core.audio_engine import AudioEngine
@@ -53,7 +55,8 @@ class KioskVinylVisionWindow:
 
         # 2. Initialize Core Modules
         self.camera_manager = CameraManager(self.config.get('camera', self.config_manager))
-                
+        self.perspective_detector = PerspectiveDetector()
+
         self.feature_extractor = AlbumFeatureExtractor()
         if hasattr(self.feature_extractor, 'load_model'):
             self.feature_extractor.load_model()
@@ -147,6 +150,9 @@ class KioskVinylVisionWindow:
 
         self.style.configure("Primary.TButton", font=("Arial", 10, "bold"), foreground="#FFFFFF", background="#007ACC", borderwidth=0, padding=6)
         self.style.map("Primary.TButton", background=[('active', '#005999')])
+
+        self.style.configure("Accent.TButton", font=("Arial", 9, "bold"), foreground="#FFFFFF", background="#1f538d", borderwidth=0, padding=4)
+        self.style.map("Accent.TButton", background=[('active', '#14375e')])
 
     def _create_containers(self):
         self.now_playing_frame = ttk.Frame(self.root, style="Dark.TFrame")
@@ -353,6 +359,14 @@ class KioskVinylVisionWindow:
         self.calib_toggle_btn = ttk.Button(calib_btn_row, text="🎯 Edit Corners", command=self._toggle_calibration_mode)
         self.calib_toggle_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
 
+        self.btn_autocalibrate = ttk.Button(
+            calib_btn_row,
+            text="⚡ Auto-Detect",
+            style="Accent.TButton",
+            command=self._on_auto_detect_corners
+        )
+        self.btn_autocalibrate.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+
         reset_calib_btn = ttk.Button(calib_btn_row, text="Reset", command=self._reset_calibration)
         reset_calib_btn.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(2, 0))
 
@@ -361,8 +375,25 @@ class KioskVinylVisionWindow:
         self.thresh_val_label.config(text=f"{v:.2f}")
 
     # ==========================================
-    # CALIBRATION & INTERACTIVE MOUSE HANDLING
+    # CALIBRATION
     # ==========================================
+    def _on_auto_detect_corners(self):
+        """Detects stand corners from the current frame and updates UI calibration markers."""
+        if self.latest_frame is None:
+            logger.warning("[⚡ Auto-Calibrate] No camera frame available.")
+            return
+
+        # Eseguiamo il rilevamento alla risoluzione del canvas per mappare 1:1 con i punti UI
+        disp_frame = cv2.resize(self.latest_frame, (self.cam_disp_w, self.cam_disp_h))
+        detected_corners = self.perspective_detector.detect_corners(disp_frame)
+
+        if detected_corners and len(detected_corners) == 4:
+            self.calibrated_corners = np.array(detected_corners, dtype=np.float32)
+            self._save_calibration()
+            logger.info(f"[⚡ Auto-Calibrate] Successfully mapped 4 corners: {detected_corners}")
+        else:
+            logger.warning("[⚡ Auto-Calibrate] Could not find a clear 4-corner polygon.")
+
     def _load_saved_calibration(self):
         calib_file = "calibration.npy"
         loaded = False

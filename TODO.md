@@ -22,7 +22,7 @@ This document tracks planned features, enhancements, and technical debt for upco
 
 ## 👁️ Computer Vision & Dataset
 
-- [ ] **Automatic Perspective Calibration**
+- [x] **Automatic Perspective Calibration**
   - Automatic detection of stand corners using contour/edge detection or a lightweight keypoint model to eliminate manual corner picking.
 - [ ] **Adaptive Lighting Normalization**
   - Implement CLAHE (Contrast Limited Adaptive Histogram Equalization) preprocessing to improve cover matching under harsh ambient reflections or low light.
